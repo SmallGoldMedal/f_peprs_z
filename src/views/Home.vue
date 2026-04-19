@@ -1,5 +1,5 @@
 <template>
-  <div class="home-container" :class="{ 'guest-mode': userStore.isGuest }">
+  <div class="home-container">
     <header class="app-header">
       <div class="logo">健身运动方案系统</div>
       <div class="user-info">
@@ -28,39 +28,27 @@
             @select="handleMenuSelect"
         >
           <el-menu-item index="home">
-            <el-icon>
-              <House/>
-            </el-icon>
+            <el-icon><House/></el-icon>
             <span>首页</span>
           </el-menu-item>
           <el-menu-item index="profile">
-            <el-icon>
-              <UserFilled/>
-            </el-icon>
+            <el-icon><UserFilled/></el-icon>
             <span>个人</span>
           </el-menu-item>
           <el-menu-item index="plan">
-            <el-icon>
-              <Calendar/>
-            </el-icon>
+            <el-icon><Calendar/></el-icon>
             <span>生成方案</span>
           </el-menu-item>
           <el-menu-item index="records">
-            <el-icon>
-              <Document/>
-            </el-icon>
+            <el-icon><Document/></el-icon>
             <span>运动记录</span>
           </el-menu-item>
           <el-menu-item index="injuries">
-            <el-icon>
-              <Warning/>
-            </el-icon>
+            <el-icon><Warning/></el-icon>
             <span>伤病记录</span>
           </el-menu-item>
           <el-menu-item index="settings">
-            <el-icon>
-              <Setting/>
-            </el-icon>
+            <el-icon><Setting/></el-icon>
             <span>设置</span>
           </el-menu-item>
         </el-menu>
@@ -99,12 +87,10 @@ const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 
-const displayName = computed(() => userStore.isGuest ? '游客' : userStore.accountname)
+const displayName = computed(() => userStore.displayName)
 
 onMounted(() => {
-  if (!userStore.isGuest) {
-    userStore.fetchUserInfo()
-  }
+  userStore.fetchUserInfo()
 })
 
 const activeMenu = ref(userStore.currentMenu)
@@ -125,10 +111,6 @@ const componentMap = {
 const currentComponent = computed(() => componentMap[activeMenu.value])
 
 const handleMenuSelect = (index) => {
-  if (userStore.isGuest && index !== 'home') {
-    ElMessage.warning('游客模式无法使用此功能，请登录后操作')
-    return
-  }
   activeMenu.value = index
   userStore.setCurrentMenu(index)
 }
@@ -146,7 +128,6 @@ const handleLogout = async () => {
     })
     await userStore.logout()
     ElMessage.success('已退出登录')
-    router.push('/')
   } catch {
     // 用户取消
   }
@@ -227,15 +208,6 @@ const handleLogout = async () => {
   background-color: #e6f7ff;
   color: #409eff;
   font-weight: 500;
-}
-
-.home-container.guest-mode .el-menu-item {
-  cursor: not-allowed;
-  opacity: 0.7;
-}
-
-.home-container.guest-mode .el-menu-item:hover {
-  background-color: transparent;
 }
 
 .content-area {
