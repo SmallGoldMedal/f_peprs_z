@@ -1,9 +1,130 @@
+<template>
+  <div class="workout-records">
+    <el-card class="records-card" shadow="hover">
+      <template #header>
+        <div class="card-header">
+          <el-icon><Document /></el-icon>
+          <span style="margin-left: 8px">添加运动记录</span>
+        </div>
+      </template>
+      
+      <el-form
+        ref="formRef"
+        :model="recordForm"
+        :rules="formRules"
+        class="record-form"
+        label-width="120px"
+      >
+        <el-form-item label="关联方案" prop="planId">
+          <el-select v-model="recordForm.planId" @change="onPlanChange" placeholder="请选择方案">
+            <el-option
+              v-for="plan in activePlans"
+              :key="plan.id"
+              :label="plan.planName"
+              :value="plan.id"
+            />
+          </el-select>
+        </el-form-item>
+        
+        <el-form-item label="完成日期" prop="completionDate">
+          <el-date-picker
+            v-model="recordForm.completionDate"
+            type="date"
+            placeholder="选择日期"
+            :disabled-date="disabledDate"
+            format="YYYY-MM-DD"
+            value-format="YYYY-MM-DD"
+            @change="onCompletionDateChange"
+          />
+        </el-form-item>
+        
+        <el-form-item label="运动项目" prop="exerciseId">
+          <el-select v-model="recordForm.exerciseId" @change="onExerciseChange" placeholder="请选择运动项目">
+            <el-option
+              v-for="ex in dayExercises"
+              :key="ex.exerciseId"
+              :label="allExercises.find(e => e.id === ex.exerciseId)?.exerciseName"
+              :value="ex.exerciseId"
+            />
+          </el-select>
+        </el-form-item>
+        
+        <el-form-item label="执行状态" prop="workoutRecordStatus">
+          <el-radio-group v-model="recordForm.workoutRecordStatus">
+            <el-radio :label="0">完成</el-radio>
+            <el-radio :label="1">部分完成</el-radio>
+            <el-radio :label="2">未完成</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        
+        <el-form-item label="实际时长(分钟)">
+          <el-input-number v-model="recordForm.actualDuration" :min="1" :max="300" style="width: 100%" />
+        </el-form-item>
+        
+        <el-form-item label="预估消耗(卡路里)">
+          <el-input v-model="recordForm.actualCalories" readonly />
+          <div class="form-tip">系统根据运动类型、强度和您的体重自动计算</div>
+        </el-form-item>
+        
+        <el-form-item>
+          <el-checkbox v-model="recordForm.discomfortFlag">运动过程中感到不适</el-checkbox>
+        </el-form-item>
+        
+        <el-form-item v-if="recordForm.discomfortFlag" label="不适相关伤病">
+          <el-input v-model="recordForm.discomfortInjuryName" placeholder="请输入伤病名称" />
+          <div class="form-tip">请先在“伤病记录”中添加伤病，然后关联</div>
+        </el-form-item>
+        
+        <el-form-item>
+          <el-button type="primary" @click="submitRecord" :loading="submitting">
+            提交记录
+          </el-button>
+          <el-button @click="resetForm">重置</el-button>
+        </el-form-item>
+      </el-form>
+    </el-card>
+    
+    <el-card class="history-card" shadow="hover" style="margin-top: 24px">
+      <template #header>
+        <div class="card-header">
+          <el-icon><Clock /></el-icon>
+          <span style="margin-left: 8px">最近运动记录</span>
+        </div>
+      </template>
+      
+      <el-empty v-if="recentRecords.length === 0" description="暂无运动记录" />
+      
+      <el-table v-else :data="recentRecords" style="width: 100%">
+        <el-table-column prop="completionDate" label="完成日期" width="150" />
+        <el-table-column prop="exerciseName" label="运动项目" />
+        <el-table-column prop="actualDuration" label="时长(分钟)" width="120" />
+        <el-table-column prop="actualCalories" label="消耗(卡路里)" width="150" />
+        <el-table-column prop="workoutRecordStatus" label="状态" width="120">
+          <template #default="scope">
+            <el-tag :type="scope.row.workoutRecordStatus === 0 ? 'success' : scope.row.workoutRecordStatus === 1 ? 'warning' : 'danger'">
+              {{ scope.row.workoutRecordStatus === 0 ? '完成' : scope.row.workoutRecordStatus === 1 ? '部分完成' : '未完成' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="100" fixed="right">
+          <template #default="scope">
+            <el-button type="text" size="small" @click="openExerciseRating(scope.row.exerciseId)">
+              评价
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
+  </div>
+</template>
+
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '@/utils/request'
 import { useUserStore } from '@/stores/user'
 import dayjs from 'dayjs'
+import { Document, Clock } from '@element-plus/icons-vue'
 
 const userStore = useUserStore()
 const formRef = ref(null)

@@ -99,7 +99,7 @@ const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 
-const displayName = computed(() => userStore.isGuest ? '游客' : userStore.accountname)
+const displayName = computed(() => userStore.isGuest ? '游客' : userStore.username)
 
 onMounted(() => {
   if (!userStore.isGuest) {
