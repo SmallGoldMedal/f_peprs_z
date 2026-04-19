@@ -114,9 +114,9 @@ const onStatusChange = () => {
 
 const fetchInjuries = async () => {
   try {
-    const res = await request.get('/injury')
+    const res = await request.post('/injury/search', { page: 1, size: 100 })
     if (res.data.code === 200) {
-      injuryList.value = res.data.data || []
+      injuryList.value = res.data.data.records || []
     } else {
       ElMessage.error(res.data.message || '获取伤病记录失败')
     }
@@ -173,9 +173,9 @@ const submitForm = async () => {
     }
     let res
     if (form.value.id) {
-      res = await request.put(`/injury/${form.value.id}`, payload)
+      res = await request.put('/injury/update', { id: form.value.id, ...payload })
     } else {
-      res = await request.post('/injury', payload)
+      res = await request.post('/injury/add', payload)
     }
     if (res.data.code === 200) {
       ElMessage.success(form.value.id ? '更新成功' : '添加成功')
