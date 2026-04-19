@@ -305,6 +305,14 @@ const enrichDetails = (details) => {
   })
 }
 
+const formatTargetMask = (mask) => {
+  if (!mask) return '未指定'
+  const map = { 1: '有氧', 2: '力量', 4: '柔韧', 8: '平衡' }
+  const parts = []
+  for (const [val, name] of Object.entries(map)) if (mask & parseInt(val)) parts.push(name)
+  return parts.join('、') || '未指定'
+}
+
 const formatEnvMask = (mask) => {
   if (!mask) return '未指定'
   const map = { 1: '居家', 2: '健身房', 4: '户外' }
@@ -317,10 +325,8 @@ const generatePlan = async () => {
   if (!generateForm.value.startDate) return ElMessage.warning('请选择开始日期')
   generating.value = true
   try {
-    let environmentMask = 0
-    if (generateForm.value.environment && generateForm.value.environment.length) {
-      generateForm.value.environment.forEach(v => environmentMask |= parseInt(v))
-    }
+    const targetMask = generateForm.value.planTarget.reduce((acc, val) => acc | val, 0) || null
+    const envMask = generateForm.value.planEnvironment.reduce((acc, val) => acc | val, 0) || null
     const equipment = equipmentList.value.length ? equipmentList.value.join(',') : null
     let intervalDaysVal = null, weeklyDaysMaskVal = null
     if (scheduleType.value === 'interval') {
@@ -338,8 +344,9 @@ const generatePlan = async () => {
       environment: envMask,
       equipment: equipment,
       intervalDays: intervalDaysVal,
-      weeklyDaysMask: weeklyDaysVal ? weeklyDaysVal.reduce((acc, val) => acc | (1 << (val - 1)), 0) : null
+      weeklyDaysMask: weeklyDaysMaskVal
     }
+    const res = await request.post('/plan/generate', payload)
     if (res.data.code === 200) {
       const plan = res.data.data
       if (plan.details) plan.details = enrichDetails(plan.details)
