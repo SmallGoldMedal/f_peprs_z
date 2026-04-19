@@ -48,6 +48,14 @@
               <div v-if="usernameExists" class="error-tip">账号已存在，请更换</div>
               <div v-else-if="checkingUsername" class="checking-tip">检测中...</div>
             </el-form-item>
+            <el-form-item prop="nickname">
+              <el-input
+                  placeholder="昵称（可选）"
+                  v-model="registerForm.nickname"
+                  class="input-field"
+                  clearable
+              ></el-input>
+            </el-form-item>
             <el-form-item prop="password">
               <el-input
                   placeholder="密码（6-20个字符）"
@@ -94,7 +102,7 @@ const isRegisterMode = ref(false)
 const loginForm = reactive({ username: '', password: '' })
 const loginLoading = ref(false)
 
-const registerForm = reactive({ username: '', password: '', confirmPassword: '' })
+const registerForm = reactive({ username: '', nickname: '', password: '', confirmPassword: '' })
 const registerLoading = ref(false)
 
 const usernameExists = ref(false)
@@ -178,6 +186,7 @@ watch(() => registerForm.username, () => {
 
 const switchToRegister = () => {
   registerForm.username = ''
+  registerForm.nickname = ''
   registerForm.password = ''
   registerForm.confirmPassword = ''
   usernameExists.value = false
@@ -223,7 +232,7 @@ const handleRegister = async () => {
   }
   registerLoading.value = true
   try {
-    await userStore.register(registerForm.username, registerForm.password)
+    await userStore.register(registerForm.username, registerForm.password, registerForm.nickname)
     ElMessage.success('注册成功，已自动登录')
     router.push('/home')
   } catch (err) {
@@ -489,11 +498,6 @@ const handleRegister = async () => {
   color: #409eff;
 }
 
-.divider {
-  margin: 0 12px;
-  color: #b0c4de;
-}
-
 .error-tip {
   color: #f56c6c;
   font-size: 12px;
@@ -514,11 +518,9 @@ const handleRegister = async () => {
   .login-card {
     padding: 30px 20px;
   }
-
   .login-card h2 {
     font-size: 24px;
   }
-
   .sun {
     width: 60px;
     height: 60px;

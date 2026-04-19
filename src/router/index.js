@@ -11,7 +11,7 @@ const routes = [
         path: '/home',
         name: 'Home',
         component: () => import('@/views/Home.vue'),
-        meta: { requiresAuth: false }
+        meta: { requiresAuth: true }
     },
     {
         path: '/admin',
@@ -28,10 +28,18 @@ const router = createRouter({
 
 router.beforeEach((to, from, next) => {
     const userStore = useUserStore()
-    if (to.meta.requiresAdmin && (!userStore.isAuthenticated || !userStore.isAdmin)) {
-        next('/')
-    } else if (to.meta.requiresAuth && !userStore.isAuthenticated) {
-        next('/')
+    if (to.meta.requiresAdmin) {
+        if (!userStore.isAuthenticated || !userStore.isAdmin) {
+            next('/')
+        } else {
+            next()
+        }
+    } else if (to.meta.requiresAuth) {
+        if (!userStore.isAuthenticated) {
+            next('/')
+        } else {
+            next()
+        }
     } else {
         next()
     }

@@ -21,9 +21,11 @@ request.interceptors.response.use(
     error => {
         if (error.response?.status === 401) {
             localStorage.removeItem('token')
-            localStorage.removeItem('accountname')
-            localStorage.removeItem('isGuest')
+            localStorage.removeItem('username')
+            localStorage.removeItem('nickname')
             localStorage.removeItem('userId')
+            localStorage.removeItem('role')
+            localStorage.removeItem('currentMenu')
             window.location.href = '/'
         }
         return Promise.reject(error)

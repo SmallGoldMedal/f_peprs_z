@@ -36,7 +36,7 @@
       <template #header>
         <div class="card-header">使用指引</div>
       </template>
-      <div v-if="!userStore.isGuest" class="guide-steps">
+      <div class="guide-steps">
         <div class="guide-step">
           <div class="step-info">
             <div class="step-num">1</div>
@@ -67,7 +67,7 @@
           </div>
           <el-button type="primary" size="small" @click="goToRecords">去记录</el-button>
         </div>
-        <div class="guide-step guide-step-flex" v-if="!userStore.isAdmin">
+        <div class="guide-step guide-step-flex">
           <div class="step-info">
             <div class="step-num">4</div>
             <div class="step-desc">
@@ -90,11 +90,6 @@
           </div>
           <el-button type="primary" size="small" @click="goToInjury">去记录</el-button>
         </div>
-      </div>
-      <div v-else class="guest-guide">
-        <el-empty description="游客模式功能受限" :image-size="80" />
-        <p>登录后开启完整功能</p>
-        <el-button type="primary" @click="goToLogin">去登录</el-button>
       </div>
     </el-card>
 
@@ -119,7 +114,7 @@
       <el-form :model="planRatingForm" :rules="planRatingRules" ref="planRatingFormRef" label-width="100px">
         <el-form-item label="选择方案" prop="planId">
           <el-select v-model="planRatingForm.planId" filterable placeholder="请选择方案">
-            <el-option v-for="plan in userPlans" :key="plan.id" :label="`${plan.planName} (${plan.planStartDate} ~ ${plan.endDate})`" :value="plan.id" />
+            <el-option v-for="plan in userPlans" :key="plan.id" :label="`${plan.planName} (${plan.startDate} ~ ${plan.endDate})`" :value="plan.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="方案评分 (1-10)" prop="planScore">
@@ -148,7 +143,7 @@ import dayjs from 'dayjs'
 
 const router = useRouter()
 const userStore = useUserStore()
-const displayName = computed(() => userStore.isGuest ? '游客' : userStore.accountname)
+const displayName = computed(() => userStore.displayName)
 
 const hasActiveAdoptedPlan = ref(false)
 const todayWorkoutCompleted = ref(false)
@@ -177,28 +172,35 @@ const getCategoryName = (mask) => {
 }
 
 const checkActiveAdoptedPlan = async () => {
-  if (userStore.isGuest) { hasActiveAdoptedPlan.value = false; return }
   try {
     const res = await request.get('/plan/list')
     if (res.data.code !== 200) return
-    const plans = res.data.data || []
+    const plans = res.data.data.records || []
     const today = dayjs().format('YYYY-MM-DD')
-    const activeAdopted = plans.filter(p => p.adopted === 1 && p.planStatus !== 2 && p.planStartDate <= today && (p.endDate || p.planStartDate) >= today)
+    // 状态为已采纳(1)或进行中(2)且未完成(3)
+    const activeAdopted = plans.filter(p => (p.status === 1 || p.status === 2) && p.startDate <= today && dayjs(p.startDate).add(p.durationDays - 1, 'day').format('YYYY-MM-DD') >= today)
     hasActiveAdoptedPlan.value = activeAdopted.length > 0
     if (hasActiveAdoptedPlan.value) await fetchTodayPlanDetails(activeAdopted[0])
-  } catch (error) { console.error(error); hasActiveAdoptedPlan.value = false }
+  } catch (error) {
+    console.error(error)
+    hasActiveAdoptedPlan.value = false
+  }
 }
 
 const fetchTodayPlanDetails = async (activePlan) => {
   try {
-    const detailsRes = await request.get(`/plan/${activePlan.id}/details`)
-    if (detailsRes.data.code === 200) {
-      let details = detailsRes.data.data || []
-      const exercisesRes = await request.get('/user/exercise/list')
-      const exMap = new Map(exercisesRes.data.data.map(e => [e.id, e]))
+    const res = await request.get(`/plan/${activePlan.id}`)
+    if (res.data.code === 200) {
+      const planData = res.data.data
+      const details = planData.details || []
       const today = dayjs().format('YYYY-MM-DD')
-      const todayNum = dayjs(today).diff(dayjs(activePlan.planStartDate), 'day') + 1
+      const todayNum = dayjs(today).diff(dayjs(activePlan.startDate), 'day') + 1
       const todayDetails = details.filter(d => d.dayNumber === todayNum).sort((a,b) => a.orderIndex - b.orderIndex)
+      const exercisesRes = await request.post('/exercise/search', { page: 1, size: 100 })
+      const exMap = new Map()
+      if (exercisesRes.data.code === 200) {
+        (exercisesRes.data.data.records || []).forEach(e => exMap.set(e.id, e))
+      }
       const warmups = [], cores = [], cooldowns = []
       todayDetails.forEach(d => {
         const ex = exMap.get(d.exerciseId)
@@ -209,37 +211,48 @@ const fetchTodayPlanDetails = async (activePlan) => {
       })
       todayPlanDetails.value = { warmups, cores, cooldowns }
     }
-  } catch (error) { console.error('获取今日方案明细失败', error) }
+  } catch (error) {
+    console.error('获取今日方案明细失败', error)
+  }
 }
 
 const checkTodayWorkout = async () => {
-  if (userStore.isGuest || !hasActiveAdoptedPlan.value) return
+  if (!hasActiveAdoptedPlan.value) return
   const today = dayjs().format('YYYY-MM-DD')
   try {
-    const res = await request.post('/record/query', { page: 1, size: 10, completionDateStart: today, completionDateEnd: today, workoutRecordStatus: 0 })
-    if (res.data.code === 200) todayWorkoutCompleted.value = (res.data.data.records || []).length > 0
-    else todayWorkoutCompleted.value = false
-  } catch (error) { todayWorkoutCompleted.value = false }
+    const res = await request.get('/record/list', { params: { page: 1, size: 10, completionDate: today } })
+    if (res.data.code === 200) {
+      const records = res.data.data.records || []
+      todayWorkoutCompleted.value = records.some(r => r.completionDate === today && r.workoutRecordStatus === 0)
+    } else {
+      todayWorkoutCompleted.value = false
+    }
+  } catch (error) {
+    todayWorkoutCompleted.value = false
+  }
 }
 
 const fetchExerciseListForRating = async () => {
   try {
-    const res = await request.get('/user/exercise/list')
-    if (res.data.code === 200) exerciseList.value = res.data.data || []
+    const res = await request.post('/exercise/search', { page: 1, size: 100 })
+    if (res.data.code === 200) exerciseList.value = res.data.data.records || []
   } catch (error) { console.error(error) }
 }
 
 const fetchUserPlansForRating = async () => {
-  if (userStore.isGuest) return
   try {
-    const res = await request.get('/plan')
-    if (res.data.code === 200) userPlans.value = res.data.data || []
+    const res = await request.get('/plan/list')
+    if (res.data.code === 200) {
+      const plans = res.data.data.records || []
+      plans.forEach(p => {
+        p.endDate = dayjs(p.startDate).add(p.durationDays - 1, 'day').format('YYYY-MM-DD')
+      })
+      userPlans.value = plans
+    }
   } catch (error) { console.error(error) }
 }
 
 const openExerciseRatingDialog = () => {
-  if (userStore.isGuest) { ElMessage.warning('请登录后评价运动项目'); return }
-  if (userStore.isAdmin) { ElMessage.warning('管理员无法评价'); return }
   exerciseRatingForm.value = { exerciseId: null, rating: 5 }
   exerciseRatingDialogVisible.value = true
 }
@@ -248,17 +261,27 @@ const submitExerciseRating = async () => {
   try { await exerciseRatingFormRef.value.validate() } catch { return }
   ratingLoading.value = true
   try {
-    const res = await request.post('/rating', { exerciseId: exerciseRatingForm.value.exerciseId, rating: exerciseRatingForm.value.rating })
-    if (res.data.code === 200) { ElMessage.success('评分提交成功，感谢反馈！'); exerciseRatingDialogVisible.value = false }
-    else ElMessage.error(res.data.message || '提交失败')
-  } catch (error) { ElMessage.error(error.response?.data?.message || '提交失败') }
-  finally { ratingLoading.value = false }
+    const res = await request.post('/rating/submit', {
+      exerciseId: exerciseRatingForm.value.exerciseId,
+      rating: exerciseRatingForm.value.rating,
+      isDefault: 0
+    })
+    if (res.data.code === 200) {
+      ElMessage.success('评分提交成功，感谢反馈！')
+      exerciseRatingDialogVisible.value = false
+    } else ElMessage.error(res.data.message || '提交失败')
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || '提交失败')
+  } finally {
+    ratingLoading.value = false
+  }
 }
 
 const openPlanRatingDialog = () => {
-  if (userStore.isGuest) { ElMessage.warning('请登录后评价方案'); return }
-  if (userStore.isAdmin) { ElMessage.warning('管理员无法评价'); return }
-  if (userPlans.value.length === 0) { ElMessage.warning('暂无方案，请先生成方案后再评价'); return }
+  if (userPlans.value.length === 0) {
+    ElMessage.warning('暂无方案，请先生成方案后再评价')
+    return
+  }
   planRatingForm.value = { planId: null, planScore: 5, feedback: '' }
   planRatingDialogVisible.value = true
 }
@@ -267,11 +290,20 @@ const submitPlanRating = async () => {
   try { await planRatingFormRef.value.validate() } catch { return }
   planRatingLoading.value = true
   try {
-    const res = await request.post(`/plan/${planRatingForm.value.planId}/feedback`, { planScore: planRatingForm.value.planScore, feedback: planRatingForm.value.feedback })
-    if (res.data.code === 200) { ElMessage.success('方案评价提交成功，感谢反馈！'); planRatingDialogVisible.value = false }
-    else ElMessage.error(res.data.message || '提交失败')
-  } catch (error) { ElMessage.error(error.response?.data?.message || '提交失败') }
-  finally { planRatingLoading.value = false }
+    const res = await request.post('/plan/feedback', {
+      planId: planRatingForm.value.planId,
+      planScore: planRatingForm.value.planScore,
+      feedback: planRatingForm.value.feedback
+    })
+    if (res.data.code === 200) {
+      ElMessage.success('方案评价提交成功，感谢反馈！')
+      planRatingDialogVisible.value = false
+    } else ElMessage.error(res.data.message || '提交失败')
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || '提交失败')
+  } finally {
+    planRatingLoading.value = false
+  }
 }
 
 const goToProfile = () => {
@@ -290,15 +322,12 @@ const goToInjury = () => {
   userStore.setCurrentMenu('injuries')
   router.push('/home')
 }
-const goToLogin = () => router.push('/')
 
 onMounted(async () => {
-  if (!userStore.isGuest) {
-    await checkActiveAdoptedPlan()
-    if (hasActiveAdoptedPlan.value) await checkTodayWorkout()
-    await fetchExerciseListForRating()
-    await fetchUserPlansForRating()
-  }
+  await checkActiveAdoptedPlan()
+  if (hasActiveAdoptedPlan.value) await checkTodayWorkout()
+  await fetchExerciseListForRating()
+  await fetchUserPlansForRating()
 })
 </script>
 
@@ -317,6 +346,4 @@ onMounted(async () => {
 .step-desc strong { font-size: 16px; color: #2c5a7a; }
 .step-desc p { margin: 4px 0 0; font-size: 13px; color: #5a7d9a; }
 .step-actions { display: flex; gap: 8px; }
-.guest-guide { text-align: center; padding: 16px 0; }
-.guest-guide p { margin: 16px 0; color: #5a7d9a; }
 </style>
