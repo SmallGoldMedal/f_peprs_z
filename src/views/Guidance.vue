@@ -518,11 +518,9 @@ const handleRegister = async () => {
   .login-card {
     padding: 30px 20px;
   }
-
   .login-card h2 {
     font-size: 24px;
   }
-
   .sun {
     width: 60px;
     height: 60px;

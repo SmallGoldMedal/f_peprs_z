@@ -1,18 +1,16 @@
 <template>
   <div class="settings-container">
-    <!-- 账号信息 -->
     <el-card class="setting-card" shadow="hover">
       <template #header>
         <div class="card-header">账号信息</div>
       </template>
       <el-descriptions :column="1" border>
-        <el-descriptions-item label="账号名">{{ userStore.accountname }}</el-descriptions-item>
-        <el-descriptions-item label="注册时间">{{ accountTimes.createTime || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="最后登录时间">{{ accountTimes.lastLoginTime || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="账号名">{{ userStore.username }}</el-descriptions-item>
+        <el-descriptions-item label="注册时间">{{ userInfo.registerTime || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="最后登录时间">{{ userInfo.lastLoginTime || '-' }}</el-descriptions-item>
       </el-descriptions>
     </el-card>
 
-    <!-- 密码修改 -->
     <el-card class="setting-card" shadow="hover">
       <template #header>
         <div class="card-header">密码修改</div>
@@ -22,7 +20,6 @@
       </div>
     </el-card>
 
-    <!-- 注销账号 -->
     <el-card class="setting-card" shadow="hover">
       <template #header>
         <div class="card-header">注销账号</div>
@@ -32,7 +29,6 @@
       </div>
     </el-card>
 
-    <!-- 修改密码对话框 -->
     <el-dialog v-model="changePwdDialogVisible" title="修改密码" width="400px" destroy-on-close>
       <el-form :model="pwdForm" :rules="pwdRules" ref="pwdFormRef" label-width="100px">
         <el-form-item label="原密码" prop="oldPassword">
@@ -51,13 +47,9 @@
       </template>
     </el-dialog>
 
-    <!-- 注销账号第二步：输入账号密码 -->
     <el-dialog v-model="deleteConfirmDialogVisible" title="账号注销验证" width="400px" destroy-on-close>
       <el-alert title="警告" type="error" description="注销后所有数据将永久删除，无法恢复！" show-icon :closable="false" style="margin-bottom: 20px" />
       <el-form :model="deleteForm" :rules="deleteRules" ref="deleteFormRef" label-width="100px">
-        <el-form-item label="账号名" prop="accountname">
-          <el-input v-model="deleteForm.accountname" placeholder="请输入账号名" />
-        </el-form-item>
         <el-form-item label="密码" prop="password">
           <el-input type="password" v-model="deleteForm.password" show-password />
         </el-form-item>
@@ -80,21 +72,21 @@ import { useRouter } from 'vue-router'
 const userStore = useUserStore()
 const router = useRouter()
 
-// 账号时间信息
-const accountTimes = ref({ createTime: '', lastLoginTime: '' })
+const userInfo = reactive({ registerTime: '', lastLoginTime: '' })
 
-const fetchAccountTimes = async () => {
+const fetchUserInfo = async () => {
   try {
-    const res = await request.get('/user/account-times')
+    const res = await request.get('/user/info')
     if (res.data.code === 200) {
-      accountTimes.value = res.data.data
+      const data = res.data.data
+      userInfo.registerTime = data.registerTime || ''
+      userInfo.lastLoginTime = data.lastLoginTime || ''
     }
   } catch (error) {
-    console.error('获取账号时间失败', error)
+    console.error('获取账号信息失败', error)
   }
 }
 
-// 修改密码
 const changePwdDialogVisible = ref(false)
 const pwdLoading = ref(false)
 const pwdFormRef = ref(null)
@@ -126,10 +118,7 @@ const submitChangePassword = async () => {
   } catch { return }
   pwdLoading.value = true
   try {
-    const res = await request.post('/auth/change-password', {
-      oldPassword: pwdForm.oldPassword,
-      newPassword: pwdForm.newPassword
-    })
+    const res = await request.put('/user/password', { oldPassword: pwdForm.oldPassword, newPassword: pwdForm.newPassword })
     if (res.data.code === 200) {
       ElMessage.success('密码修改成功，请重新登录')
       changePwdDialogVisible.value = false
@@ -145,16 +134,11 @@ const submitChangePassword = async () => {
   }
 }
 
-// 注销账号两步确认
 const deleteConfirmDialogVisible = ref(false)
 const deleteLoading = ref(false)
 const deleteFormRef = ref(null)
-const deleteForm = reactive({
-  accountname: '',
-  password: ''
-})
+const deleteForm = reactive({ password: '' })
 const deleteRules = {
-  accountname: [{ required: true, message: '请输入账号名', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
 }
 const confirmFirstStep = async () => {
@@ -162,10 +146,8 @@ const confirmFirstStep = async () => {
     await ElMessageBox.confirm('确定要注销账号吗？若注销则无法恢复账号信息', '警告', {
       confirmButtonText: '确定注销',
       cancelButtonText: '取消',
-      type: 'warning',
-      confirmButtonClass: 'el-button--danger'
+      type: 'warning'
     })
-    deleteForm.accountname = userStore.accountname
     deleteForm.password = ''
     deleteConfirmDialogVisible.value = true
   } catch { }
@@ -174,13 +156,9 @@ const submitDeleteAccount = async () => {
   try {
     await deleteFormRef.value.validate()
   } catch { return }
-  if (deleteForm.accountname !== userStore.accountname) {
-    ElMessage.error('账号名错误')
-    return
-  }
   deleteLoading.value = true
   try {
-    const res = await request.delete('/user/account')
+    const res = await request.delete('/user/cancel', { data: { password: deleteForm.password } })
     if (res.data.code === 200) {
       ElMessage.success('账号已注销')
       userStore.clearAuth()
@@ -197,9 +175,7 @@ const submitDeleteAccount = async () => {
 }
 
 onMounted(() => {
-  if (!userStore.isGuest) {
-    fetchAccountTimes()
-  }
+  fetchUserInfo()
 })
 </script>
 

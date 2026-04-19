@@ -322,7 +322,7 @@ const generatePlan = async () => {
     } else if (scheduleType.value === 'weekly') {
       weeklyDaysMaskVal = weeklyDays.value.reduce((mask, day) => mask | (1 << (day - 1)), 0)
     } else {
-      intervalDaysVal = 1   // 每天运动
+      intervalDaysVal = 1
     }
     const payload = {
       planName: generateForm.value.planName || null,
@@ -519,12 +519,10 @@ onMounted(async () => {
   max-width: 1400px;
   margin: 0 auto;
 }
-
 .generate-card, .plan-result-card, .plan-list-card {
   margin-bottom: 24px;
   border-radius: 16px;
 }
-
 .card-header {
   display: flex;
   justify-content: space-between;
@@ -533,33 +531,27 @@ onMounted(async () => {
   font-weight: 600;
   color: #2c5a7a;
 }
-
 .generate-form {
   max-width: 100%;
 }
-
 .option-group {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
-
 .option-group :deep(.el-checkbox-button) {
   margin-right: 0;
 }
-
 .option-group :deep(.el-checkbox-button.is-checked) {
   background-color: #409eff;
   border-color: #409eff;
   color: white;
 }
-
 .equipment-area {
   display: flex;
   align-items: center;
   margin-bottom: 12px;
 }
-
 .equipment-history {
   margin-bottom: 12px;
   display: flex;
@@ -567,7 +559,6 @@ onMounted(async () => {
   align-items: center;
   gap: 8px;
 }
-
 .selected-equipment {
   margin-top: 8px;
   display: flex;
@@ -575,27 +566,22 @@ onMounted(async () => {
   align-items: center;
   gap: 8px;
 }
-
 .history-label {
   font-size: 13px;
   color: #666;
 }
-
 .history-tag {
   cursor: pointer;
   transition: all 0.2s;
 }
-
 .history-tag:hover {
   background-color: #409eff;
   color: white;
   border-color: #409eff;
 }
-
 .detail-table {
   margin-top: 16px;
 }
-
 .plan-info {
   margin-bottom: 20px;
 }
