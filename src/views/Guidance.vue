@@ -32,17 +32,15 @@
           </el-button>
           <div class="extra-links">
             <a href="#" @click.prevent="switchToRegister">注册账号</a>
-            <span class="divider">|</span>
-            <a href="#" @click.prevent="handleGuestLogin">游客登录</a>
           </div>
         </div>
 
         <div v-else class="form-container register-form">
           <el-form :model="registerForm" :rules="registerRules" ref="registerFormRef" @submit.prevent>
-            <el-form-item prop="accountname">
+            <el-form-item prop="username">
               <el-input
                   placeholder="账号（3-20个字符）"
-                  v-model="registerForm.accountname"
+                  v-model="registerForm.username"
                   class="input-field"
                   clearable
                   @blur="checkUsernameDebounced"
@@ -155,7 +153,6 @@ const checkUsername = async () => {
   try {
     const res = await request.get('/auth/check-username', { params: { username: usernameVal } })
     if (res.data.code === 200) {
-      // 后端返回的是 available: true/false，根据实际调整
       usernameExists.value = !res.data.data
     } else {
       usernameExists.value = false
@@ -214,9 +211,6 @@ const handleLogin = async () => {
   }
 }
 
-// 游客登录暂时移除
-// const handleGuestLogin = async () => { ... }
-
 const handleRegister = async () => {
   try {
     await registerFormRef.value.validate()
@@ -246,6 +240,7 @@ const handleRegister = async () => {
   padding: 0;
   box-sizing: border-box;
 }
+
 .guidance-page {
   position: relative;
   width: 100%;
@@ -253,6 +248,7 @@ const handleRegister = async () => {
   overflow: hidden;
   font-family: 'Segoe UI', 'PingFang SC', Roboto, 'Helvetica Neue', sans-serif;
 }
+
 .sky {
   position: absolute;
   top: 0;
@@ -262,6 +258,7 @@ const handleRegister = async () => {
   background: linear-gradient(145deg, #6bc4ff 0%, #8ad0ff 60%, #b0e0ff 100%);
   z-index: 0;
 }
+
 .sun {
   position: absolute;
   top: 8%;
@@ -274,10 +271,18 @@ const handleRegister = async () => {
   z-index: 0;
   animation: sunGlow 3s ease-in-out infinite alternate;
 }
+
 @keyframes sunGlow {
-  0% { box-shadow: 0 0 20px rgba(255,200,50,0.4); transform: scale(1); }
-  100% { box-shadow: 0 0 45px rgba(255,200,50,0.9); transform: scale(1.02); }
+  0% {
+    box-shadow: 0 0 20px rgba(255, 200, 50, 0.4);
+    transform: scale(1);
+  }
+  100% {
+    box-shadow: 0 0 45px rgba(255, 200, 50, 0.9);
+    transform: scale(1.02);
+  }
 }
+
 .clouds {
   position: absolute;
   top: 0;
@@ -288,30 +293,124 @@ const handleRegister = async () => {
   z-index: 1;
   overflow: hidden;
 }
+
 .cloud {
   position: absolute;
   background: rgba(255, 255, 255, 0.92);
   border-radius: 1000px;
-  box-shadow: 0 12px 25px rgba(0,0,0,0.05), 0 0 0 5px rgba(255,255,255,0.7), 0 0 0 12px rgba(255,245,230,0.3);
+  box-shadow: 0 12px 25px rgba(0, 0, 0, 0.05), 0 0 0 5px rgba(255, 255, 255, 0.7), 0 0 0 12px rgba(255, 245, 230, 0.3);
   animation: floatLeft linear infinite;
 }
-.cloud1 { width: 120px; height: 70px; top: 12%; left: 110%; animation-duration: 22s; }
-.cloud1::before, .cloud1::after { content: ''; position: absolute; background: inherit; border-radius: 50%; }
-.cloud1::before { width: 60px; height: 60px; top: -30px; left: 15px; }
-.cloud1::after { width: 80px; height: 80px; top: -40px; left: 45px; }
-.cloud2 { width: 150px; height: 85px; top: 35%; left: 130%; animation-duration: 28s; animation-delay: -6s; }
-.cloud2::before { width: 75px; height: 75px; top: -35px; left: 20px; }
-.cloud2::after { width: 95px; height: 95px; top: -48px; left: 55px; }
-.cloud3 { width: 100px; height: 60px; top: 60%; left: 115%; animation-duration: 18s; animation-delay: -12s; }
-.cloud3::before { width: 50px; height: 50px; top: -25px; left: 12px; }
-.cloud3::after { width: 65px; height: 65px; top: -32px; left: 35px; }
-.cloud4 { width: 80px; height: 50px; top: 78%; left: 120%; animation-duration: 15s; animation-delay: -4s; }
-.cloud4::before { width: 40px; height: 40px; top: -20px; left: 10px; }
-.cloud4::after { width: 55px; height: 55px; top: -28px; left: 30px; }
-@keyframes floatLeft {
-  0% { transform: translateX(0); opacity: 0.9; }
-  100% { transform: translateX(-200vw); opacity: 0.3; }
+
+.cloud1 {
+  width: 120px;
+  height: 70px;
+  top: 12%;
+  left: 110%;
+  animation-duration: 22s;
 }
+
+.cloud1::before, .cloud1::after {
+  content: '';
+  position: absolute;
+  background: inherit;
+  border-radius: 50%;
+}
+
+.cloud1::before {
+  width: 60px;
+  height: 60px;
+  top: -30px;
+  left: 15px;
+}
+
+.cloud1::after {
+  width: 80px;
+  height: 80px;
+  top: -40px;
+  left: 45px;
+}
+
+.cloud2 {
+  width: 150px;
+  height: 85px;
+  top: 35%;
+  left: 130%;
+  animation-duration: 28s;
+  animation-delay: -6s;
+}
+
+.cloud2::before {
+  width: 75px;
+  height: 75px;
+  top: -35px;
+  left: 20px;
+}
+
+.cloud2::after {
+  width: 95px;
+  height: 95px;
+  top: -48px;
+  left: 55px;
+}
+
+.cloud3 {
+  width: 100px;
+  height: 60px;
+  top: 60%;
+  left: 115%;
+  animation-duration: 18s;
+  animation-delay: -12s;
+}
+
+.cloud3::before {
+  width: 50px;
+  height: 50px;
+  top: -25px;
+  left: 12px;
+}
+
+.cloud3::after {
+  width: 65px;
+  height: 65px;
+  top: -32px;
+  left: 35px;
+}
+
+.cloud4 {
+  width: 80px;
+  height: 50px;
+  top: 78%;
+  left: 120%;
+  animation-duration: 15s;
+  animation-delay: -4s;
+}
+
+.cloud4::before {
+  width: 40px;
+  height: 40px;
+  top: -20px;
+  left: 10px;
+}
+
+.cloud4::after {
+  width: 55px;
+  height: 55px;
+  top: -28px;
+  left: 30px;
+}
+
+@keyframes floatLeft {
+  0% {
+    transform: translateX(0);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateX(-200vw);
+    opacity: 0.3;
+  }
+}
+
 .login-container {
   position: absolute;
   top: 50%;
@@ -321,42 +420,48 @@ const handleRegister = async () => {
   max-width: 420px;
   z-index: 10;
 }
+
 .login-card {
   background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(12px);
   border-radius: 32px;
   padding: 30px 20px 40px;
-  box-shadow: 0 25px 45px rgba(0,0,0,0.2);
+  box-shadow: 0 25px 45px rgba(0, 0, 0, 0.2);
   text-align: center;
-  border: 1px solid rgba(255,255,255,0.5);
+  border: 1px solid rgba(255, 255, 255, 0.5);
 }
+
 .login-card h2 {
   font-size: 28px;
   font-weight: 600;
   color: #2c5a7a;
   margin-bottom: 24px;
 }
+
 .form-container {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
-/* 注册模式下，el-form-item 之间保持 16px 间距，与登录界面一致 */
+
 .register-form .el-form {
   width: 100%;
 }
+
 .register-form .el-form-item {
   margin-bottom: 16px;
 }
-/* 最后一个表单项的下边距由父容器 gap 控制，这里重置避免多余间距 */
+
 .register-form .el-form-item:last-child {
   margin-bottom: 0;
 }
+
 .input-field :deep(.el-input__wrapper) {
-  background-color: rgba(255,255,255,0.9);
+  background-color: rgba(255, 255, 255, 0.9);
   border-radius: 40px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
+
 .action-btn {
   width: 100%;
   border-radius: 40px;
@@ -364,25 +469,31 @@ const handleRegister = async () => {
   border: none;
   margin-top: 8px;
 }
+
 .action-btn:disabled {
   background: #a0cfff;
   cursor: not-allowed;
 }
+
 .extra-links {
   margin-top: 16px;
   font-size: 13px;
 }
+
 .extra-links a {
   color: #5a7d9a;
   text-decoration: none;
 }
+
 .extra-links a:hover {
   color: #409eff;
 }
+
 .divider {
   margin: 0 12px;
   color: #b0c4de;
 }
+
 .error-tip {
   color: #f56c6c;
   font-size: 12px;
@@ -390,6 +501,7 @@ const handleRegister = async () => {
   text-align: left;
   padding-left: 16px;
 }
+
 .checking-tip {
   color: #909399;
   font-size: 12px;
@@ -397,9 +509,21 @@ const handleRegister = async () => {
   text-align: left;
   padding-left: 16px;
 }
+
 @media (max-width: 640px) {
-  .login-card { padding: 30px 20px; }
-  .login-card h2 { font-size: 24px; }
-  .sun { width: 60px; height: 60px; top: 6%; right: 6%; }
+  .login-card {
+    padding: 30px 20px;
+  }
+
+  .login-card h2 {
+    font-size: 24px;
+  }
+
+  .sun {
+    width: 60px;
+    height: 60px;
+    top: 6%;
+    right: 6%;
+  }
 }
 </style>
