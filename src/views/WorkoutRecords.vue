@@ -41,10 +41,10 @@
         <el-form-item label="运动项目" prop="exerciseId">
           <el-select v-model="recordForm.exerciseId" @change="onExerciseChange" placeholder="请选择运动项目">
             <el-option
-              v-for="ex in dayExercises"
-              :key="ex.exerciseId"
-              :label="allExercises.find(e => e.id === ex.exerciseId)?.exerciseName"
-              :value="ex.exerciseId"
+              v-for="ex in recordForm.planId === 0 ? allExercises : dayExercises"
+              :key="recordForm.planId === 0 ? ex.id : ex.exerciseId"
+              :label="recordForm.planId === 0 ? ex.exerciseName : allExercises.find(e => e.id === ex.exerciseId)?.exerciseName"
+              :value="recordForm.planId === 0 ? ex.id : ex.exerciseId"
             />
           </el-select>
         </el-form-item>
