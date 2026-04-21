@@ -6,18 +6,18 @@ const routes = [
     {
         path: '/',
         name: 'Login',
-        component: () => import('@/views/Login.vue')
+        component: () => import('@/views/AuthPage.vue')
     },
     {
         path: '/home',
         name: 'Home',
-        component: () => import('@/views/Home.vue'),
+        component: () => import('@/views/UserPage.vue'),
         meta: { requiresAuth: true }
     },
     {
         path: '/admin',
         name: 'Admin',
-        component: () => import('@/views/Admin.vue'),
+        component: () => import('@/views/AdminPage.vue'),
         meta: { requiresAdmin: true }
     }
 ]

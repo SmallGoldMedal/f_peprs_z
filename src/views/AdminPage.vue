@@ -1,18 +1,14 @@
+// 文件位置：C:\Users\12243\Desktop\f_peprs_z\src\views\AdminPage.vue
 <template>
-  <div class="home-container">
+  <div class="admin-container">
+    <!-- 头部栏 -->
     <header class="app-header">
-      <div class="logo">健身运动方案系统</div>
+      <div class="logo">健身运动方案系统（管理后台）</div>
       <div class="user-info">
         <el-icon><User /></el-icon>
-        <span>欢迎回来，{{ displayName }}</span>
-        <el-button
-            v-if="userStore.isAdmin && $route.path !== '/admin'"
-            type="primary"
-            size="small"
-            @click="switchToAdminView"
-            style="margin-left: 12px"
-        >
-          切换到管理员视角
+        <span>管理员，{{ displayName }}</span>
+        <el-button type="primary" size="small" @click="goBackToUserView" style="margin-left: 12px">
+          返回用户视角
         </el-button>
         <el-button type="danger" size="small" @click="handleLogout" style="margin-left: 12px">
           退出登录
@@ -20,105 +16,95 @@
       </div>
     </header>
 
+    <!-- 主体区域 -->
     <div class="app-main">
+      <!-- 左侧菜单栏 -->
       <aside class="sidebar">
         <el-menu
             :default-active="activeMenu"
             class="menu-vertical"
             @select="handleMenuSelect"
         >
-          <el-menu-item index="home">
-            <el-icon><House/></el-icon>
-            <span>首页</span>
+          <el-menu-item index="dashboard">
+            <el-icon><DataBoard /></el-icon>
+            <span>数据看板</span>
           </el-menu-item>
-          <el-menu-item index="profile">
-            <el-icon><UserFilled/></el-icon>
-            <span>个人</span>
+          <el-menu-item index="users">
+            <el-icon><User /></el-icon>
+            <span>用户管理</span>
           </el-menu-item>
-          <el-menu-item index="plan">
-            <el-icon><Calendar/></el-icon>
-            <span>生成方案</span>
+          <el-menu-item index="exercises">
+            <el-icon><Basketball /></el-icon>
+            <span>运动管理</span>
+          </el-menu-item>
+          <el-menu-item index="plans">
+            <el-icon><Calendar /></el-icon>
+            <span>方案管理</span>
           </el-menu-item>
           <el-menu-item index="records">
-            <el-icon><Document/></el-icon>
-            <span>运动记录</span>
-          </el-menu-item>
-          <el-menu-item index="injuries">
-            <el-icon><Warning/></el-icon>
-            <span>伤病记录</span>
-          </el-menu-item>
-          <el-menu-item index="settings">
-            <el-icon><Setting/></el-icon>
-            <span>设置</span>
+            <el-icon><Document /></el-icon>
+            <span>记录管理</span>
           </el-menu-item>
         </el-menu>
       </aside>
 
+      <!-- 右侧内容区域 -->
       <main class="content-area">
-        <component :is="currentComponent"/>
+        <div class="placeholder-content">
+          <el-empty description="管理功能开发中" />
+        </div>
       </main>
     </div>
   </div>
 </template>
 
 <script setup>
-import {ref, computed, markRaw, onMounted, watch} from 'vue'
-import {useRouter, useRoute} from 'vue-router'
-import {useUserStore} from '@/stores/user'
-import {ElMessage, ElMessageBox} from 'element-plus'
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { useUserStore } from '@/stores/user'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  House,
   User,
-  UserFilled,
+  DataBoard,
+  Basketball,
   Calendar,
-  Document,
-  Setting,
-  Warning
+  Document
 } from '@element-plus/icons-vue'
-
-import Dashboard from './Dashboard.vue'
-import Profile from './Profile.vue'
-import PlanRecommend from './PlanRecommend.vue'
-import WorkoutRecords from './WorkoutRecords.vue'
-import InjuryRecords from './InjuryRecords.vue'
-import Settings from './Settings.vue'
+import request from '@/utils/request'
 
 const router = useRouter()
-const route = useRoute()
 const userStore = useUserStore()
 
-const displayName = computed(() => userStore.displayName)
-
-onMounted(() => {
-  userStore.fetchUserInfo()
-})
-
-const activeMenu = ref(userStore.currentMenu)
-
-watch(() => userStore.currentMenu, (newVal) => {
-  activeMenu.value = newVal
-})
-
-const componentMap = {
-  home: markRaw(Dashboard),
-  profile: markRaw(Profile),
-  plan: markRaw(PlanRecommend),
-  records: markRaw(WorkoutRecords),
-  injuries: markRaw(InjuryRecords),
-  settings: markRaw(Settings)
+// 显示名称（优先昵称，其次用户名）
+const displayName = ref('')
+const fetchDisplayName = async () => {
+  try {
+    const res = await request.get('/user/info')
+    if (res.data.code === 200 && res.data.data.nickname) {
+      displayName.value = res.data.data.nickname
+    } else {
+      displayName.value = userStore.username
+    }
+  } catch {
+    displayName.value = userStore.username
+  }
 }
 
-const currentComponent = computed(() => componentMap[activeMenu.value])
+// 当前激活的菜单项
+const activeMenu = ref('dashboard')
 
+// 菜单选择事件（预留，暂不加载具体组件）
 const handleMenuSelect = (index) => {
   activeMenu.value = index
-  userStore.setCurrentMenu(index)
+  // 此处可扩展为动态加载组件，当前仅做框架演示
 }
 
-const switchToAdminView = () => {
-  router.push('/admin')
+// 返回用户视角
+const goBackToUserView = () => {
+  router.push('/home')
 }
 
+// 退出登录
 const handleLogout = async () => {
   try {
     await ElMessageBox.confirm('确定要退出登录吗？', '提示', {
@@ -126,16 +112,22 @@ const handleLogout = async () => {
       cancelButtonText: '取消',
       type: 'warning'
     })
-    await userStore.logout()
+    await request.post('/auth/logout')
+    userStore.clearAuth()
     ElMessage.success('已退出登录')
+    router.push('/')
   } catch {
     // 用户取消
   }
 }
+
+onMounted(() => {
+  fetchDisplayName()
+})
 </script>
 
 <style scoped>
-.home-container {
+.admin-container {
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -215,5 +207,20 @@ const handleLogout = async () => {
   padding: 24px;
   overflow-y: auto;
   background-color: #f0f2f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.placeholder-content {
+  width: 100%;
+  max-width: 600px;
+}
+</style>
+
+<style>
+.admin-container input,
+.admin-container textarea {
+  caret-color: black;
 }
 </style>

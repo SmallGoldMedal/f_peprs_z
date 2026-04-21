@@ -533,3 +533,10 @@ if (userStore.isAuthenticated) {
   }
 }
 </style>
+
+<style>
+.login-page input,
+.login-page textarea {
+  caret-color: black;
+}
+</style>
