@@ -8,12 +8,19 @@
         <el-form-item label="名称">
           <el-input v-model="generateForm.planName" placeholder="可选，不填则自动生成" style="width: 250px"/>
         </el-form-item>
+<<<<<<< HEAD
         <el-form-item label="持续周数">
           <el-input-number v-model="generateForm.durationWeeks" :min="1" :max="52" :step="1" controls-position="right"/>
           <span style="margin-left: 10px; color: #909399;">周（1~52）</span>
+=======
+        <el-form-item label="方案天数">
+          <el-input-number v-model="generateForm.durationDays" :min="1" :max="30" :step="1"
+                           controls-position="right"/>
+>>>>>>> 3d87fdc7b795b75f11283dc981b171432f7f7285
         </el-form-item>
         <el-form-item label="开始日期">
-          <el-date-picker v-model="generateForm.startDate" type="date" placeholder="选择日期" value-format="YYYY-MM-DD"/>
+          <el-date-picker v-model="generateForm.startDate" type="date" placeholder="选择日期"
+                          value-format="YYYY-MM-DD"/>
         </el-form-item>
 
         <el-form-item label="运动安排">
@@ -97,10 +104,19 @@
       </template>
       <el-descriptions :column="3" border class="plan-info">
         <el-descriptions-item label="开始日期">{{ currentPlan.startDate }}</el-descriptions-item>
+<<<<<<< HEAD
         <el-descriptions-item label="结束日期">{{ calculateEndDate(currentPlan.startDate, currentPlan.durationDays) }}</el-descriptions-item>
         <el-descriptions-item label="持续周数">{{ currentPlan.durationWeeks }} 周</el-descriptions-item>
         <el-descriptions-item label="目标">{{ currentPlan.purpose || '未指定' }}{{ currentPlan.targetValue ? ' (' + currentPlan.targetValue + getTargetUnitSuffix(currentPlan.purpose) + ')' : '' }}</el-descriptions-item>
         <el-descriptions-item label="场合">{{ formatEnvMask(currentPlan.environment) }}</el-descriptions-item>
+=======
+        <el-descriptions-item label="结束日期">
+          {{ currentPlan.endDate || calculateEndDate(currentPlan.startDate, currentPlan.durationWeeks * 7) }}
+        </el-descriptions-item>
+        <el-descriptions-item label="总天数">{{ currentPlan.durationWeeks * 7 }} 天</el-descriptions-item>
+        <el-descriptions-item label="运动目标">{{ formatTargetMask(currentPlan.targetValue) }}</el-descriptions-item>
+        <el-descriptions-item label="运动环境">{{ formatEnvMask(currentPlan.environment) }}</el-descriptions-item>
+>>>>>>> 3d87fdc7b795b75f11283dc981b171432f7f7285
         <el-descriptions-item label="所需器械">{{ currentPlan.equipment || '无' }}</el-descriptions-item>
       </el-descriptions>
 
@@ -131,8 +147,8 @@
         </el-table-column>
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.status === 3 ? 'success' : 'primary'">
-              {{ row.status === 0 ? '已推荐' : row.status === 1 ? '已采纳' : row.status === 2 ? '进行中' : row.status === 3 ? '已完成' : '未完成' }}
+            <el-tag :type="row.status === 2 ? 'success' : 'primary'">
+              {{ row.status === 0 ? '推荐' : row.status === 1 ? '被选择' : '已完成' }}
             </el-tag>
           </template>
         </el-table-column>
@@ -161,10 +177,17 @@
         <el-descriptions :column="3" border>
           <el-descriptions-item label="开始日期">{{ historyPlan.startDate }}</el-descriptions-item>
           <el-descriptions-item label="结束日期">{{ historyPlan.endDate }}</el-descriptions-item>
+<<<<<<< HEAD
           <el-descriptions-item label="持续周数">{{ historyPlan.durationWeeks }} 周</el-descriptions-item>
           <el-descriptions-item label="状态">{{ historyPlan.status === 0 ? '已推荐' : historyPlan.status === 1 ? '已采纳' : historyPlan.status === 2 ? '进行中' : historyPlan.status === 3 ? '已完成' : '未完成' }}</el-descriptions-item>
           <el-descriptions-item label="是否采纳">{{ historyPlan.status === 1 ? '已采纳' : '未采纳' }}</el-descriptions-item>
           <el-descriptions-item label="目标">{{ historyPlan.purpose || '未指定' }}{{ historyPlan.targetValue ? ' (' + historyPlan.targetValue + getTargetUnitSuffix(historyPlan.purpose) + ')' : '' }}</el-descriptions-item>
+=======
+          <el-descriptions-item label="状态">
+            {{ historyPlan.status === 0 ? '推荐' : historyPlan.status === 1 ? '被选择' : '已完成' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="是否采纳">{{ historyPlan.adopted ? '已采纳' : '未采纳' }}</el-descriptions-item>
+>>>>>>> 3d87fdc7b795b75f11283dc981b171432f7f7285
         </el-descriptions>
         <el-table :data="historyDetails" border stripe>
           <el-table-column prop="dayNumber" label="第几天" width="80"/>
@@ -212,11 +235,18 @@ const userStore = useUserStore()
 
 const generateForm = ref({
   planName: '',
+<<<<<<< HEAD
   durationWeeks: 1,       // 持续周数
   startDate: dayjs().format('YYYY-MM-DD'),
   purpose: '',
   targetValue: null,      // 目标数值
   environment: []
+=======
+  durationDays: 7,
+  startDate: new Date().toISOString().slice(0, 10),
+  planTarget: [],
+  planEnvironment: []
+>>>>>>> 3d87fdc7b795b75f11283dc981b171432f7f7285
 })
 const scheduleType = ref('daily')
 const intervalDays = ref(2)
@@ -326,6 +356,14 @@ const enrichDetails = (details) => {
   })
 }
 
+const formatTargetMask = (mask) => {
+  if (!mask) return '未指定'
+  const map = { 1: '有氧', 2: '力量', 4: '柔韧', 8: '平衡' }
+  const parts = []
+  for (const [val, name] of Object.entries(map)) if (mask & parseInt(val)) parts.push(name)
+  return parts.join('、') || '未指定'
+}
+
 const formatEnvMask = (mask) => {
   if (!mask) return '未指定'
   const map = { 1: '居家', 2: '健身房', 4: '户外' }
@@ -344,10 +382,8 @@ const generatePlan = async () => {
   }
   generating.value = true
   try {
-    let environmentMask = 0
-    if (generateForm.value.environment && generateForm.value.environment.length) {
-      generateForm.value.environment.forEach(v => environmentMask |= parseInt(v))
-    }
+    const targetMask = generateForm.value.planTarget.reduce((acc, val) => acc | val, 0) || null
+    const envMask = generateForm.value.planEnvironment.reduce((acc, val) => acc | val, 0) || null
     const equipment = equipmentList.value.length ? equipmentList.value.join(',') : null
     let intervalDaysVal = null, weeklyDaysMaskVal = null
     if (scheduleType.value === 'interval') {
@@ -361,9 +397,14 @@ const generatePlan = async () => {
       planName: generateForm.value.planName || null,
       durationDays: durationDays,                     // 转换后的天数
       startDate: generateForm.value.startDate,
+<<<<<<< HEAD
       purpose: generateForm.value.purpose,
       targetValue: generateForm.value.targetValue,   // 目标数值
       environment: environmentMask || null,
+=======
+      targetValue: targetMask,
+      environment: envMask,
+>>>>>>> 3d87fdc7b795b75f11283dc981b171432f7f7285
       equipment: equipment,
       intervalDays: intervalDaysVal,
       weeklyDaysMask: weeklyDaysMaskVal
