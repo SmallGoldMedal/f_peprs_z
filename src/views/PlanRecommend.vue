@@ -5,17 +5,18 @@
         <div class="card-header">生成运动方案</div>
       </template>
       <el-form :model="generateForm" label-width="100px" class="generate-form">
-        <el-form-item label="方案名称">
+        <el-form-item label="名称">
           <el-input v-model="generateForm.planName" placeholder="可选，不填则自动生成" style="width: 250px"/>
         </el-form-item>
-        <el-form-item label="方案天数">
-          <el-input-number v-model="generateForm.durationDays" :min="1" :max="30" :step="1" controls-position="right"/>
+        <el-form-item label="持续周数">
+          <el-input-number v-model="generateForm.durationWeeks" :min="1" :max="52" :step="1" controls-position="right"/>
+          <span style="margin-left: 10px; color: #909399;">周（1~52）</span>
         </el-form-item>
         <el-form-item label="开始日期">
           <el-date-picker v-model="generateForm.startDate" type="date" placeholder="选择日期" value-format="YYYY-MM-DD"/>
         </el-form-item>
 
-        <el-form-item label="运动时间">
+        <el-form-item label="运动安排">
           <el-radio-group v-model="scheduleType" @change="onScheduleTypeChange">
             <el-radio value="daily">每天</el-radio>
             <el-radio value="interval">每隔几天运动一次</el-radio>
@@ -38,17 +39,21 @@
           </el-checkbox-group>
         </el-form-item>
 
-        <el-form-item label="运动目的">
-          <el-select v-model="generateForm.purpose" placeholder="请选择主要目的">
+        <el-form-item label="目标">
+          <el-select v-model="generateForm.purpose" placeholder="请选择主要目标" style="width: 150px; margin-right: 12px;">
             <el-option label="减脂" value="减脂" />
             <el-option label="增肌" value="增肌" />
             <el-option label="提高心肺" value="提高心肺" />
             <el-option label="柔韧改善" value="柔韧改善" />
             <el-option label="康复" value="康复" />
           </el-select>
+          <el-input-number v-model="generateForm.targetValue" :min="0" :max="100" :step="0.5" controls-position="right" placeholder="目标数值" style="width: 120px"/>
+          <span style="margin-left: 8px; color: #909399;">
+            {{ targetUnit }}
+          </span>
         </el-form-item>
 
-        <el-form-item label="运动环境">
+        <el-form-item label="场合">
           <div class="option-group">
             <el-checkbox-group v-model="generateForm.environment">
               <el-checkbox-button value="1">居家</el-checkbox-button>
@@ -93,9 +98,9 @@
       <el-descriptions :column="3" border class="plan-info">
         <el-descriptions-item label="开始日期">{{ currentPlan.startDate }}</el-descriptions-item>
         <el-descriptions-item label="结束日期">{{ calculateEndDate(currentPlan.startDate, currentPlan.durationDays) }}</el-descriptions-item>
-        <el-descriptions-item label="总天数">{{ currentPlan.durationDays }} 天</el-descriptions-item>
-        <el-descriptions-item label="运动目的">{{ currentPlan.purpose || '未指定' }}</el-descriptions-item>
-        <el-descriptions-item label="运动环境">{{ formatEnvMask(currentPlan.environment) }}</el-descriptions-item>
+        <el-descriptions-item label="持续周数">{{ currentPlan.durationWeeks }} 周</el-descriptions-item>
+        <el-descriptions-item label="目标">{{ currentPlan.purpose || '未指定' }}{{ currentPlan.targetValue ? ' (' + currentPlan.targetValue + getTargetUnitSuffix(currentPlan.purpose) + ')' : '' }}</el-descriptions-item>
+        <el-descriptions-item label="场合">{{ formatEnvMask(currentPlan.environment) }}</el-descriptions-item>
         <el-descriptions-item label="所需器械">{{ currentPlan.equipment || '无' }}</el-descriptions-item>
       </el-descriptions>
 
@@ -121,6 +126,9 @@
         <el-table-column prop="planName" label="方案名称" min-width="150"/>
         <el-table-column prop="startDate" label="开始日期" width="120"/>
         <el-table-column prop="endDate" label="结束日期" width="120"/>
+        <el-table-column label="持续周数" width="100">
+          <template #default="{ row }">{{ row.durationWeeks }} 周</template>
+        </el-table-column>
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="row.status === 3 ? 'success' : 'primary'">
@@ -153,8 +161,10 @@
         <el-descriptions :column="3" border>
           <el-descriptions-item label="开始日期">{{ historyPlan.startDate }}</el-descriptions-item>
           <el-descriptions-item label="结束日期">{{ historyPlan.endDate }}</el-descriptions-item>
+          <el-descriptions-item label="持续周数">{{ historyPlan.durationWeeks }} 周</el-descriptions-item>
           <el-descriptions-item label="状态">{{ historyPlan.status === 0 ? '已推荐' : historyPlan.status === 1 ? '已采纳' : historyPlan.status === 2 ? '进行中' : historyPlan.status === 3 ? '已完成' : '未完成' }}</el-descriptions-item>
           <el-descriptions-item label="是否采纳">{{ historyPlan.status === 1 ? '已采纳' : '未采纳' }}</el-descriptions-item>
+          <el-descriptions-item label="目标">{{ historyPlan.purpose || '未指定' }}{{ historyPlan.targetValue ? ' (' + historyPlan.targetValue + getTargetUnitSuffix(historyPlan.purpose) + ')' : '' }}</el-descriptions-item>
         </el-descriptions>
         <el-table :data="historyDetails" border stripe>
           <el-table-column prop="dayNumber" label="第几天" width="80"/>
@@ -202,14 +212,31 @@ const userStore = useUserStore()
 
 const generateForm = ref({
   planName: '',
-  durationDays: 7,
+  durationWeeks: 1,       // 持续周数
   startDate: dayjs().format('YYYY-MM-DD'),
   purpose: '',
+  targetValue: null,      // 目标数值
   environment: []
 })
 const scheduleType = ref('daily')
 const intervalDays = ref(2)
 const weeklyDays = ref([1, 3, 5])
+
+// 根据目标类型返回单位文本
+const targetUnit = computed(() => {
+  const purpose = generateForm.value.purpose
+  if (purpose === '减脂') return 'kg'
+  if (purpose === '增肌') return 'kg'
+  if (purpose === '提高心肺') return 'bpm'
+  return ''
+})
+
+const getTargetUnitSuffix = (purpose) => {
+  if (purpose === '减脂') return 'kg'
+  if (purpose === '增肌') return 'kg'
+  if (purpose === '提高心肺') return 'bpm'
+  return ''
+}
 
 const onScheduleTypeChange = () => {}
 
@@ -309,6 +336,12 @@ const formatEnvMask = (mask) => {
 
 const generatePlan = async () => {
   if (!generateForm.value.startDate) return ElMessage.warning('请选择开始日期')
+  // 持续周数转为天数
+  const durationDays = generateForm.value.durationWeeks * 7
+  if (durationDays < 1 || durationDays > 365) {
+    ElMessage.warning('持续周数转换后天数超出范围（1~365天）')
+    return
+  }
   generating.value = true
   try {
     let environmentMask = 0
@@ -326,9 +359,10 @@ const generatePlan = async () => {
     }
     const payload = {
       planName: generateForm.value.planName || null,
-      durationDays: generateForm.value.durationDays,
+      durationDays: durationDays,                     // 转换后的天数
       startDate: generateForm.value.startDate,
       purpose: generateForm.value.purpose,
+      targetValue: generateForm.value.targetValue,   // 目标数值
       environment: environmentMask || null,
       equipment: equipment,
       intervalDays: intervalDaysVal,
@@ -337,6 +371,8 @@ const generatePlan = async () => {
     const res = await request.post('/plan/generate', payload)
     if (res.data.code === 200) {
       const plan = res.data.data
+      // 补充前端需要的持续周数（后端可能未返回，自行计算）
+      if (plan.durationWeeks === undefined && plan.durationDays) plan.durationWeeks = Math.ceil(plan.durationDays / 7)
       if (plan.details) plan.details = enrichDetails(plan.details)
       currentPlan.value = plan
       detailList.value = plan.details
@@ -425,6 +461,7 @@ const fetchPlans = async () => {
       const plans = res.data.data.records || []
       plans.forEach(p => {
         p.endDate = calculateEndDate(p.startDate, p.durationDays)
+        if (!p.durationWeeks && p.durationDays) p.durationWeeks = Math.ceil(p.durationDays / 7)
       })
       planList.value = plans
     }
@@ -438,6 +475,7 @@ const viewPlanDetail = async (plan) => {
     const res = await request.get(`/plan/${plan.id}`)
     if (res.data.code === 200) {
       const data = res.data.data
+      if (!data.durationWeeks && data.durationDays) data.durationWeeks = Math.ceil(data.durationDays / 7)
       if (data.details) data.details = enrichDetails(data.details)
       historyPlan.value = data
       historyDetails.value = data.details || []

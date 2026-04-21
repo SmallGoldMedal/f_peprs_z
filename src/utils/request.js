@@ -1,4 +1,7 @@
 import axios from 'axios'
+import { ElMessageBox } from 'element-plus'
+import router from '@/router'
+import { useUserStore } from '@/stores/user'
 
 const request = axios.create({
     baseURL: '',
@@ -20,13 +23,25 @@ request.interceptors.response.use(
     response => response,
     error => {
         if (error.response?.status === 401) {
+            // 清除本地存储
             localStorage.removeItem('token')
             localStorage.removeItem('username')
-            localStorage.removeItem('nickname')
             localStorage.removeItem('userId')
             localStorage.removeItem('role')
             localStorage.removeItem('currentMenu')
-            window.location.href = '/'
+
+            // 同步清除 Pinia store 中的用户状态
+            const userStore = useUserStore()
+            userStore.clearAuth()
+
+            // 弹出提示框，用户点击确定后跳转到登录页
+            ElMessageBox.alert('登录已过期，请重新登录', '提示', {
+                confirmButtonText: '确定',
+                callback: () => {
+                    router.push('/')
+                }
+            })
+            return Promise.reject(error)
         }
         return Promise.reject(error)
     }

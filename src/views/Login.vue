@@ -1,7 +1,10 @@
 <template>
-  <div class="guidance-page">
+  <div class="login-page">
+    <!-- 天空背景 -->
     <div class="sky"></div>
+    <!-- 太阳 -->
     <div class="sun"></div>
+    <!-- 云朵动画 -->
     <div class="clouds">
       <div class="cloud cloud1"></div>
       <div class="cloud cloud2"></div>
@@ -9,10 +12,12 @@
       <div class="cloud cloud4"></div>
     </div>
 
+    <!-- 登录/注册卡片 -->
     <div class="login-container">
       <div class="login-card" :class="{ 'register-mode': isRegisterMode }">
         <h2>{{ isRegisterMode ? '注册新账号' : '健身运动方案系统' }}</h2>
 
+        <!-- 登录表单 -->
         <div v-if="!isRegisterMode" class="form-container">
           <el-input
               placeholder="用户名"
@@ -35,6 +40,7 @@
           </div>
         </div>
 
+        <!-- 注册表单 -->
         <div v-else class="form-container register-form">
           <el-form :model="registerForm" :rules="registerRules" ref="registerFormRef" @submit.prevent>
             <el-form-item prop="username">
@@ -47,14 +53,6 @@
               ></el-input>
               <div v-if="usernameExists" class="error-tip">账号已存在，请更换</div>
               <div v-else-if="checkingUsername" class="checking-tip">检测中...</div>
-            </el-form-item>
-            <el-form-item prop="nickname">
-              <el-input
-                  placeholder="昵称（可选）"
-                  v-model="registerForm.nickname"
-                  class="input-field"
-                  clearable
-              ></el-input>
             </el-form-item>
             <el-form-item prop="password">
               <el-input
@@ -97,20 +95,24 @@ import request from '@/utils/request'
 const router = useRouter()
 const userStore = useUserStore()
 
+// 模式切换
 const isRegisterMode = ref(false)
 
+// 登录表单
 const loginForm = reactive({ username: '', password: '' })
 const loginLoading = ref(false)
 
-const registerForm = reactive({ username: '', nickname: '', password: '', confirmPassword: '' })
+// 注册表单
+const registerForm = reactive({ username: '', password: '', confirmPassword: '' })
 const registerLoading = ref(false)
+const registerFormRef = ref(null)
 
+// 用户名实时校验
 const usernameExists = ref(false)
 const checkingUsername = ref(false)
 let debounceTimer = null
 
-const registerFormRef = ref(null)
-
+// 注册表单验证规则
 const validateConfirmPassword = (rule, value, callback) => {
   if (value !== registerForm.password) {
     callback(new Error('两次输入的密码不一致'))
@@ -150,6 +152,7 @@ const registerRules = {
   ]
 }
 
+// 检查用户名是否已存在
 const checkUsername = async () => {
   const usernameVal = registerForm.username
   if (!usernameVal || usernameVal.length < 3 || usernameVal.length > 20) {
@@ -166,7 +169,7 @@ const checkUsername = async () => {
       usernameExists.value = false
     }
   } catch (error) {
-    console.error('检测账号名失败', error)
+    console.error('检测账号名失败，请检查网络后再试', error)
     usernameExists.value = false
   } finally {
     checkingUsername.value = false
@@ -180,13 +183,14 @@ const checkUsernameDebounced = () => {
   }, 500)
 }
 
+// 监听用户名变化，重置存在状态
 watch(() => registerForm.username, () => {
   usernameExists.value = false
 })
 
+// 切换到注册模式
 const switchToRegister = () => {
   registerForm.username = ''
-  registerForm.nickname = ''
   registerForm.password = ''
   registerForm.confirmPassword = ''
   usernameExists.value = false
@@ -197,12 +201,14 @@ const switchToRegister = () => {
   })
 }
 
+// 切换到登录模式
 const switchToLogin = () => {
   loginForm.username = ''
   loginForm.password = ''
   isRegisterMode.value = false
 }
 
+// 登录处理
 const handleLogin = async () => {
   if (!loginForm.username || !loginForm.password) {
     ElMessage.warning('请输入用户名和密码')
@@ -220,6 +226,7 @@ const handleLogin = async () => {
   }
 }
 
+// 注册处理
 const handleRegister = async () => {
   try {
     await registerFormRef.value.validate()
@@ -232,7 +239,7 @@ const handleRegister = async () => {
   }
   registerLoading.value = true
   try {
-    await userStore.register(registerForm.username, registerForm.password, registerForm.nickname)
+    await userStore.register(registerForm.username, registerForm.password)
     ElMessage.success('注册成功，已自动登录')
     router.push('/home')
   } catch (err) {
@@ -240,6 +247,11 @@ const handleRegister = async () => {
   } finally {
     registerLoading.value = false
   }
+}
+
+// 如果已经登录，直接跳转首页
+if (userStore.isAuthenticated) {
+  router.push('/home')
 }
 </script>
 
@@ -250,7 +262,7 @@ const handleRegister = async () => {
   box-sizing: border-box;
 }
 
-.guidance-page {
+.login-page {
   position: relative;
   width: 100%;
   height: 100vh;
@@ -258,6 +270,7 @@ const handleRegister = async () => {
   font-family: 'Segoe UI', 'PingFang SC', Roboto, 'Helvetica Neue', sans-serif;
 }
 
+/* 天空 */
 .sky {
   position: absolute;
   top: 0;
@@ -268,6 +281,7 @@ const handleRegister = async () => {
   z-index: 0;
 }
 
+/* 太阳 */
 .sun {
   position: absolute;
   top: 8%;
@@ -292,6 +306,7 @@ const handleRegister = async () => {
   }
 }
 
+/* 云朵 */
 .clouds {
   position: absolute;
   top: 0;
@@ -318,21 +333,18 @@ const handleRegister = async () => {
   left: 110%;
   animation-duration: 22s;
 }
-
 .cloud1::before, .cloud1::after {
   content: '';
   position: absolute;
   background: inherit;
   border-radius: 50%;
 }
-
 .cloud1::before {
   width: 60px;
   height: 60px;
   top: -30px;
   left: 15px;
 }
-
 .cloud1::after {
   width: 80px;
   height: 80px;
@@ -348,14 +360,12 @@ const handleRegister = async () => {
   animation-duration: 28s;
   animation-delay: -6s;
 }
-
 .cloud2::before {
   width: 75px;
   height: 75px;
   top: -35px;
   left: 20px;
 }
-
 .cloud2::after {
   width: 95px;
   height: 95px;
@@ -371,14 +381,12 @@ const handleRegister = async () => {
   animation-duration: 18s;
   animation-delay: -12s;
 }
-
 .cloud3::before {
   width: 50px;
   height: 50px;
   top: -25px;
   left: 12px;
 }
-
 .cloud3::after {
   width: 65px;
   height: 65px;
@@ -394,14 +402,12 @@ const handleRegister = async () => {
   animation-duration: 15s;
   animation-delay: -4s;
 }
-
 .cloud4::before {
   width: 40px;
   height: 40px;
   top: -20px;
   left: 10px;
 }
-
 .cloud4::after {
   width: 55px;
   height: 55px;
@@ -420,6 +426,7 @@ const handleRegister = async () => {
   }
 }
 
+/* 登录卡片容器 */
 .login-container {
   position: absolute;
   top: 50%;
@@ -438,6 +445,7 @@ const handleRegister = async () => {
   box-shadow: 0 25px 45px rgba(0, 0, 0, 0.2);
   text-align: center;
   border: 1px solid rgba(255, 255, 255, 0.5);
+  transition: all 0.3s ease;
 }
 
 .login-card h2 {
@@ -460,7 +468,6 @@ const handleRegister = async () => {
 .register-form .el-form-item {
   margin-bottom: 16px;
 }
-
 .register-form .el-form-item:last-child {
   margin-bottom: 0;
 }
@@ -488,12 +495,10 @@ const handleRegister = async () => {
   margin-top: 16px;
   font-size: 13px;
 }
-
 .extra-links a {
   color: #5a7d9a;
   text-decoration: none;
 }
-
 .extra-links a:hover {
   color: #409eff;
 }
@@ -505,7 +510,6 @@ const handleRegister = async () => {
   text-align: left;
   padding-left: 16px;
 }
-
 .checking-tip {
   color: #909399;
   font-size: 12px;
