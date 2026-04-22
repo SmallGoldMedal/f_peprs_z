@@ -55,6 +55,10 @@
             <el-icon><Warning /></el-icon>
             <span>伤病记录</span>
           </el-menu-item>
+          <el-menu-item index="exercise">
+            <el-icon><Basketball /></el-icon>
+            <span>运动项目</span>
+          </el-menu-item>
           <el-menu-item index="setting">
             <el-icon><Setting /></el-icon>
             <span>账号设置</span>
@@ -71,7 +75,6 @@
 </template>
 
 <script setup>
-// Home主页框架组件，负责布局和菜单切换
 import { ref, computed, markRaw, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
@@ -83,24 +86,26 @@ import {
   Document,
   Warning,
   Star,
+  Basketball,
   Setting,
   House
 } from '@element-plus/icons-vue'
 import request from '@/utils/request'
 
 // 导入各功能组件
-import Home from './Home/test.vue'
+import Home from './Home/Home.vue'
 import UserProfile from './UserProfile/UserProfile.vue'
-import Plan from './Plan/test.vue'
-import WorkoutRecords from './WorkoutRecords/test.vue'
-import Rating from './Rating/test.vue'
-import Injury from './Injury/test.vue'
+import Plan from './Plan/Plan.vue'
+import WorkoutRecords from './WorkoutRecords/WorkoutRecords.vue'
+import Rating from './Rating/Rating.vue'
+import Injury from './Injury/Injury.vue'
+import Exercise from './Exercise/Exercise.vue'
 import SettingsPage from '@/views/Settings/Settings.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
 
-// 显示名称（优先昵称，其次用户名）
+// 显示名称
 const displayName = ref('')
 const fetchDisplayName = async () => {
   try {
@@ -120,10 +125,10 @@ const fetchDisplayName = async () => {
   }
 }
 
-// 当前激活的菜单项（从store读取，保持刷新后状态）
+// 当前激活的菜单项
 const activeMenu = ref(userStore.currentMenu || 'home')
 
-// 组件映射表（索引与组件一一对应）
+// 组件映射表
 const componentMap = {
   home: markRaw(Home),
   profile: markRaw(UserProfile),
@@ -131,6 +136,7 @@ const componentMap = {
   workout: markRaw(WorkoutRecords),
   rating: markRaw(Rating),
   injury: markRaw(Injury),
+  exercise: markRaw(Exercise),
   setting: markRaw(SettingsPage)
 }
 
@@ -171,6 +177,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* 样式保持不变，省略重复代码 */
 .home-container {
   display: flex;
   flex-direction: column;
@@ -179,7 +186,6 @@ onMounted(() => {
   overflow: hidden;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
-
 .app-header {
   display: flex;
   justify-content: space-between;
@@ -190,14 +196,12 @@ onMounted(() => {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
   z-index: 10;
 }
-
 .logo {
   font-size: 18px;
   font-weight: 600;
   color: #2c5a7a;
   letter-spacing: 1px;
 }
-
 .user-info {
   display: flex;
   align-items: center;
@@ -209,25 +213,21 @@ onMounted(() => {
   border-radius: 30px;
   cursor: default;
 }
-
 .app-main {
   display: flex;
   flex: 1;
   overflow: hidden;
 }
-
 .sidebar {
   width: 220px;
   background-color: #f8f9fc;
   border-right: 1px solid #e9ecef;
   overflow-y: auto;
 }
-
 .menu-vertical {
   border-right: none;
   background-color: transparent;
 }
-
 :deep(.el-menu-item) {
   height: 50px;
   line-height: 50px;
@@ -235,17 +235,14 @@ onMounted(() => {
   border-radius: 12px;
   transition: all 0.2s ease;
 }
-
 :deep(.el-menu-item:hover) {
   background-color: #eef2f6;
 }
-
 :deep(.el-menu-item.is-active) {
   background-color: #e6f7ff;
   color: #409eff;
   font-weight: 500;
 }
-
 .content-area {
   flex: 1;
   padding: 24px;
@@ -255,7 +252,6 @@ onMounted(() => {
 </style>
 
 <style>
-/* 全局效果：鼠标光标处于输入状态时，光标显示为黑色 */
 .home-container input,
 .home-container textarea {
   caret-color: black;

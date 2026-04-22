@@ -50,7 +50,7 @@ const submit = async () => {
   })
   submitting.value = true
   try {
-    const res = await request.delete('/user/cancel', { data: { password: form.password } })
+    const res = await request.delete('/user/delete', { data: { password: form.password } })
     if (res.data.code === 200) {
       ElMessage.success('账号已注销，即将退出系统')
       await request.post('/auth/logout')
