@@ -24,7 +24,7 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
-import request from '@/utils/request'
+import request from '@/utils/request.js'
 
 const dialogVisible = ref(false)
 const submitting = ref(false)

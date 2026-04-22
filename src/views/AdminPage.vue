@@ -1,7 +1,6 @@
 // 文件位置：C:\Users\12243\Desktop\f_peprs_z\src\views\AdminPage.vue
 <template>
   <div class="admin-container">
-    <!-- 头部栏 -->
     <header class="app-header">
       <div class="logo">健身运动方案系统（管理后台）</div>
       <div class="user-info">
@@ -16,66 +15,51 @@
       </div>
     </header>
 
-    <!-- 主体区域 -->
     <div class="app-main">
-      <!-- 左侧菜单栏 -->
       <aside class="sidebar">
         <el-menu
             :default-active="activeMenu"
             class="menu-vertical"
             @select="handleMenuSelect"
         >
-          <el-menu-item index="dashboard">
+          <el-menu-item index="dataManage">
             <el-icon><DataBoard /></el-icon>
-            <span>数据看板</span>
+            <span>系统数据管理</span>
           </el-menu-item>
-          <el-menu-item index="users">
+          <el-menu-item index="userManage">
             <el-icon><User /></el-icon>
             <span>用户管理</span>
           </el-menu-item>
-          <el-menu-item index="exercises">
-            <el-icon><Basketball /></el-icon>
-            <span>运动管理</span>
-          </el-menu-item>
-          <el-menu-item index="plans">
-            <el-icon><Calendar /></el-icon>
-            <span>方案管理</span>
-          </el-menu-item>
-          <el-menu-item index="records">
+          <el-menu-item index="logManage">
             <el-icon><Document /></el-icon>
-            <span>记录管理</span>
+            <span>系统日志管理</span>
           </el-menu-item>
         </el-menu>
       </aside>
 
-      <!-- 右侧内容区域 -->
       <main class="content-area">
-        <div class="placeholder-content">
-          <el-empty description="管理功能开发中" />
-        </div>
+        <component :is="currentComponent" />
       </main>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, markRaw, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import {
-  User,
-  DataBoard,
-  Basketball,
-  Calendar,
-  Document
-} from '@element-plus/icons-vue'
+import { User, DataBoard, Document } from '@element-plus/icons-vue'
 import request from '@/utils/request'
+
+// 导入三个管理组件
+import SystemDataManage from './AdminPage/SystemDataManage.vue'
+import UserManage from './AdminPage/UserManage.vue'
+import LogManage from './AdminPage/LogManage.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
 
-// 显示名称（优先昵称，其次用户名）
 const displayName = ref('')
 const fetchDisplayName = async () => {
   try {
@@ -90,21 +74,24 @@ const fetchDisplayName = async () => {
   }
 }
 
-// 当前激活的菜单项
-const activeMenu = ref('dashboard')
+const activeMenu = ref('dataManage')
 
-// 菜单选择事件（预留，暂不加载具体组件）
-const handleMenuSelect = (index) => {
-  activeMenu.value = index
-  // 此处可扩展为动态加载组件，当前仅做框架演示
+const componentMap = {
+  dataManage: markRaw(SystemDataManage),
+  userManage: markRaw(UserManage),
+  logManage: markRaw(LogManage)
 }
 
-// 返回用户视角
+const currentComponent = computed(() => componentMap[activeMenu.value])
+
+const handleMenuSelect = (index) => {
+  activeMenu.value = index
+}
+
 const goBackToUserView = () => {
   router.push('/home')
 }
 
-// 退出登录
 const handleLogout = async () => {
   try {
     await ElMessageBox.confirm('确定要退出登录吗？', '提示', {
@@ -116,9 +103,7 @@ const handleLogout = async () => {
     userStore.clearAuth()
     ElMessage.success('已退出登录')
     router.push('/')
-  } catch {
-    // 用户取消
-  }
+  } catch {}
 }
 
 onMounted(() => {
@@ -127,6 +112,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* 样式与原 AdminPage.vue 保持一致，此处省略（实际使用原有样式） */
 .admin-container {
   display: flex;
   flex-direction: column;
@@ -135,7 +121,6 @@ onMounted(() => {
   overflow: hidden;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
-
 .app-header {
   display: flex;
   justify-content: space-between;
@@ -146,14 +131,12 @@ onMounted(() => {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
   z-index: 10;
 }
-
 .logo {
   font-size: 18px;
   font-weight: 600;
   color: #2c5a7a;
   letter-spacing: 1px;
 }
-
 .user-info {
   display: flex;
   align-items: center;
@@ -165,25 +148,21 @@ onMounted(() => {
   border-radius: 30px;
   cursor: default;
 }
-
 .app-main {
   display: flex;
   flex: 1;
   overflow: hidden;
 }
-
 .sidebar {
   width: 220px;
   background-color: #f8f9fc;
   border-right: 1px solid #e9ecef;
   overflow-y: auto;
 }
-
 .menu-vertical {
   border-right: none;
   background-color: transparent;
 }
-
 :deep(.el-menu-item) {
   height: 50px;
   line-height: 50px;
@@ -191,34 +170,21 @@ onMounted(() => {
   border-radius: 12px;
   transition: all 0.2s ease;
 }
-
 :deep(.el-menu-item:hover) {
   background-color: #eef2f6;
 }
-
 :deep(.el-menu-item.is-active) {
   background-color: #e6f7ff;
   color: #409eff;
   font-weight: 500;
 }
-
 .content-area {
   flex: 1;
   padding: 24px;
   overflow-y: auto;
   background-color: #f0f2f5;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
-.placeholder-content {
-  width: 100%;
-  max-width: 600px;
-}
-</style>
-
-<style>
 .admin-container input,
 .admin-container textarea {
   caret-color: black;

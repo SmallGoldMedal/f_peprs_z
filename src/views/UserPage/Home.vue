@@ -1,4 +1,4 @@
-// 文件位置：C:\Users\12243\Desktop\f_peprs_z\src\views\Home\Home.vue
+<!-- 文件位置：C:\Users\12243\Desktop\f_peprs_z\src\views\UserPage\Home.vue -->
 <template>
   <div class="home-dashboard">
     <el-row :gutter="20">
@@ -69,10 +69,12 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Calendar, Document, Fire } from '@element-plus/icons-vue'
-import request from '@/utils/request'
+import { Calendar, Document } from '@element-plus/icons-vue'  // 移除 Fire 导入，因为已全局注册
+import request from '@/utils/request.js'
+import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
+const userStore = useUserStore()
 const planCount = ref(0)
 const recordCount = ref(0)
 const totalCalories = ref(0)
@@ -121,21 +123,14 @@ const fetchDashboard = async () => {
 }
 
 const goToPlan = () => {
-  router.push('/home')
-  // 通过事件通知父组件切换菜单，但这里无法直接修改 activeMenu，需要借助 store
-  const { useUserStore } = require('@/stores/user')
-  const userStore = useUserStore()
   userStore.setCurrentMenu('plan')
-  location.reload() // 简单刷新，实际可使用事件总线
+  // 触发页面刷新，实际项目可使用事件总线，这里简单重新加载
+  window.location.reload()
 }
 
 const viewPlan = (planId) => {
-  // 跳转到方案详情页（需要实现方案详情组件，暂跳转方案列表）
-  router.push('/home')
-  const { useUserStore } = require('@/stores/user')
-  const userStore = useUserStore()
   userStore.setCurrentMenu('plan')
-  location.reload()
+  window.location.reload()
 }
 
 onMounted(() => {

@@ -1,3 +1,4 @@
+// 文件位置：C:\Users\12243\Desktop\f_peprs_z\src\views\UserPage\WorkoutRecords.vue
 <template>
   <div class="workout-page">
     <el-card class="record-card">
@@ -34,6 +35,11 @@
         <el-table-column prop="actualDuration" label="时长(分钟)" width="100" />
         <el-table-column prop="actualDistance" label="距离(km)" width="100" />
         <el-table-column prop="actualCalories" label="消耗(kcal)" width="100" />
+        <el-table-column label="是否不适" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.injuryId ? 'danger' : 'success'">{{ row.injuryId ? '是' : '否' }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="showEditDialog(row)">编辑</el-button>
@@ -44,8 +50,8 @@
     </el-card>
 
     <!-- 添加/编辑对话框 -->
-    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑记录' : '添加记录'" width="500px" destroy-on-close>
-      <el-form :model="form" :rules="rules" ref="formRef" label-width="100px">
+    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑记录' : '添加记录'" width="550px" destroy-on-close>
+      <el-form :model="form" :rules="rules" ref="formRef" label-width="120px">
         <el-form-item label="运动项目ID" prop="exerciseId">
           <el-input-number v-model="form.exerciseId" :min="1" />
         </el-form-item>
@@ -73,6 +79,25 @@
         <el-form-item label="消耗(kcal)" prop="actualCalories">
           <el-input-number v-model="form.actualCalories" :min="0" />
         </el-form-item>
+
+        <!-- 是否感到不适 -->
+        <el-form-item label="是否感到不适">
+          <el-switch v-model="form.unwellFlag" @change="handleUnwellChange" />
+          <span style="margin-left: 8px">{{ form.unwellFlag ? '是' : '否' }}</span>
+        </el-form-item>
+
+        <!-- 关联伤病记录（仅当不适时显示） -->
+        <el-form-item v-if="form.unwellFlag" label="关联伤病" prop="injuryId">
+          <el-select v-model="form.injuryId" placeholder="请选择关联的伤病记录" clearable filterable>
+            <el-option
+                v-for="item in injuryList"
+                :key="item.id"
+                :label="`${getBodyPartText(item.bodyPartMask)} - ${getInjuryStatusText(item.status)} (${formatDateShort(item.injuredDate)})`"
+                :value="item.id"
+            />
+          </el-select>
+          <div class="tip-text">选择本次运动感到不适关联的伤病记录</div>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
@@ -85,7 +110,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import request from '@/utils/request'
+import request from '@/utils/request.js'
 
 const loading = ref(false)
 const recordList = ref([])
@@ -94,6 +119,10 @@ const dialogVisible = ref(false)
 const isEdit = ref(false)
 const submitting = ref(false)
 const formRef = ref(null)
+
+// 伤病列表
+const injuryList = ref([])
+
 const form = reactive({
   id: null,
   exerciseId: null,
@@ -104,13 +133,55 @@ const form = reactive({
   actualDuration: null,
   actualDistance: null,
   actualCalories: null,
-  planId: null
+  planId: null,
+  unwellFlag: false,      // 是否感到不适（前端辅助字段）
+  injuryId: null          // 关联伤病ID
 })
 
 const rules = {
   exerciseId: [{ required: true, message: '请输入运动项目ID', trigger: 'blur' }],
   completionDate: [{ required: true, message: '请选择完成日期', trigger: 'change' }],
   status: [{ required: true, message: '请选择状态', trigger: 'change' }]
+}
+
+// 获取伤病记录列表（用于下拉选择）
+const fetchInjuries = async () => {
+  try {
+    const res = await request.get('/user/injury/list')
+    if (res.data.code === 200) {
+      injuryList.value = res.data.data || []
+    }
+  } catch {
+    // 忽略错误，不阻塞主流程
+  }
+}
+
+// 辅助函数：伤病部位文本
+const bodyPartMap = { 1: '头', 2: '手', 4: '脚', 8: '肩', 16: '脖', 32: '胯', 64: '身子', 128: '内脏', 256: '骨' }
+const getBodyPartText = (mask) => {
+  if (!mask) return '-'
+  const parts = []
+  for (const [val, text] of Object.entries(bodyPartMap)) {
+    if (mask & parseInt(val)) parts.push(text)
+  }
+  return parts.join(',') || '-'
+}
+
+const getInjuryStatusText = (status) => {
+  const map = { 0: '治疗中', 1: '恢复中', 2: '已痊愈' }
+  return map[status] || '未知'
+}
+
+const formatDateShort = (dateStr) => {
+  if (!dateStr) return '-'
+  return new Date(dateStr).toLocaleDateString()
+}
+
+// 处理不适开关变化
+const handleUnwellChange = (val) => {
+  if (!val) {
+    form.injuryId = null
+  }
 }
 
 const fetchRecords = async () => {
@@ -140,7 +211,18 @@ const resetFilter = () => {
 
 const showAddDialog = () => {
   isEdit.value = false
-  Object.assign(form, { id: null, exerciseId: null, completionDate: null, status: 0, actualSets: null, actualReps: null, actualDuration: null, actualDistance: null, actualCalories: null, planId: null })
+  form.id = null
+  form.exerciseId = null
+  form.completionDate = null
+  form.status = 0
+  form.actualSets = null
+  form.actualReps = null
+  form.actualDuration = null
+  form.actualDistance = null
+  form.actualCalories = null
+  form.planId = null
+  form.unwellFlag = false
+  form.injuryId = null
   dialogVisible.value = true
 }
 
@@ -156,7 +238,9 @@ const showEditDialog = (row) => {
     actualDuration: row.actualDuration,
     actualDistance: row.actualDistance,
     actualCalories: row.actualCalories,
-    planId: row.planId
+    planId: row.planId,
+    unwellFlag: !!row.injuryId,
+    injuryId: row.injuryId || null
   })
   dialogVisible.value = true
 }
@@ -168,8 +252,18 @@ const submitForm = async () => {
   } catch { return }
   submitting.value = true
   try {
-    const payload = { ...form }
-    if (payload.completionDate) payload.completionDate = new Date(payload.completionDate).toISOString().split('T')[0]
+    const payload = {
+      exerciseId: form.exerciseId,
+      completionDate: new Date(form.completionDate).toISOString().split('T')[0],
+      status: form.status,
+      actualSets: form.actualSets,
+      actualReps: form.actualReps,
+      actualDuration: form.actualDuration,
+      actualDistance: form.actualDistance,
+      actualCalories: form.actualCalories,
+      planId: form.planId,
+      injuryId: form.unwellFlag ? form.injuryId : null
+    }
     let res
     if (isEdit.value) {
       res = await request.put(`/user/workout-record/update/${form.id}`, payload)
@@ -205,6 +299,7 @@ const deleteRecord = async (id) => {
 
 onMounted(() => {
   fetchRecords()
+  fetchInjuries()
 })
 </script>
 
@@ -223,5 +318,10 @@ onMounted(() => {
 }
 .filter-form {
   margin-bottom: 16px;
+}
+.tip-text {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 4px;
 }
 </style>

@@ -128,7 +128,7 @@
 <script setup>
 import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import request from '@/utils/request'
+import request from '@/utils/request.js'
 
 // 慢性病列表
 const allDiseases = [

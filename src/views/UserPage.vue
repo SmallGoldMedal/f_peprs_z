@@ -92,15 +92,15 @@ import {
 } from '@element-plus/icons-vue'
 import request from '@/utils/request'
 
-// 导入各功能组件
-import Home from './Home/Home.vue'
-import UserProfile from './UserProfile/UserProfile.vue'
-import Plan from './Plan/Plan.vue'
-import WorkoutRecords from './WorkoutRecords/WorkoutRecords.vue'
-import Rating from './Rating/Rating.vue'
-import Injury from './Injury/Injury.vue'
-import Exercise from './Exercise/Exercise.vue'
-import SettingsPage from '@/views/Settings/Settings.vue'
+// 导入各功能组件（新路径）
+import Home from './UserPage/Home.vue'
+import UserProfile from './UserPage/UserProfile.vue'
+import Plan from './UserPage/Plan.vue'
+import WorkoutRecords from './UserPage/WorkoutRecords.vue'
+import Rating from './UserPage/Rating.vue'
+import Injury from './UserPage/Injury.vue'
+import Exercise from './UserPage/Exercise.vue'
+import SettingsPage from './UserPage/Settings/Settings.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -177,7 +177,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* 样式保持不变，省略重复代码 */
+/* 样式保持不变（省略重复代码） */
 .home-container {
   display: flex;
   flex-direction: column;

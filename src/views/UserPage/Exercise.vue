@@ -103,7 +103,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import axios from '@/utils/request'
+import axios from '@/utils/request.js'
 
 const loading = ref(false)
 const tableData = ref([])

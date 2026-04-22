@@ -1,4 +1,4 @@
-// 文件位置：C:\Users\12243\Desktop\f_peprs_z\src\views\Plan\Plan.vue
+// 文件位置：C:\Users\12243\Desktop\f_peprs_z\src\views\UserPage\Plan.vue
 <template>
   <div class="plan-page">
     <el-card class="plan-card">
@@ -31,11 +31,12 @@
         <el-table-column label="评分" width="80">
           <template #default="{ row }">{{ row.planScore || '-' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column label="操作" width="240" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="viewDetail(row)">详情</el-button>
             <el-button link type="warning" @click="updateStatus(row)" :disabled="row.status === 2 || row.status === 3">更新状态</el-button>
             <el-button link type="success" @click="showFeedback(row)" :disabled="!!row.planScore">评分反馈</el-button>
+            <el-button link type="danger" @click="deletePlan(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -185,8 +186,8 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import request from '@/utils/request'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import request from '@/utils/request.js'
 
 const loading = ref(false)
 const planList = ref([])
@@ -358,6 +359,28 @@ const submitFeedback = async () => {
     }
   } catch {
     ElMessage.error('提交失败')
+  }
+}
+
+// 删除方案
+const deletePlan = async (plan) => {
+  try {
+    await ElMessageBox.confirm(`确定删除方案“${plan.planName}”吗？删除后不可恢复，关联的运动记录将不再关联此方案。`, '提示', {
+      type: 'warning',
+      confirmButtonText: '确定删除',
+      cancelButtonText: '取消'
+    })
+    const res = await request.delete(`/user/plan/${plan.id}`)
+    if (res.data.code === 200) {
+      ElMessage.success('删除成功')
+      fetchPlans()
+    } else {
+      ElMessage.error(res.data.message || '删除失败')
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('删除失败')
+    }
   }
 }
 

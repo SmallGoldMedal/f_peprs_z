@@ -1,3 +1,4 @@
+<!-- 文件位置：C:\Users\12243\Desktop\f_peprs_z\src\views\AuthPage.vue -->
 <template>
   <div class="login-page">
     <!-- 天空背景 -->

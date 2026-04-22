@@ -51,7 +51,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import request from '@/utils/request'
+import request from '@/utils/request.js'
 
 const loading = ref(false)
 const ratingList = ref([])
