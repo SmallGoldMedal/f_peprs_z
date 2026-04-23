@@ -11,25 +11,41 @@
 
       <el-table
           :data="planList"
-          ref="planTableRef"
           row-key="id"
+          :expand-row-keys="expandedRowKeys"
+          @expand-change="handleExpandChange"
           v-loading="loading"
           stripe
-          @expand-change="handleExpandChange"
       >
-        <!-- 展开列 -->
+        <!-- 展开列：每天单独一个表格，每个项目一行 -->
         <el-table-column type="expand">
           <template #default="{ row }">
             <div class="expand-content">
-              <el-table :data="row.details" v-loading="row.detailsLoading" border size="small">
-                <el-table-column prop="dayNumber" label="第几天" width="100" />
-                <el-table-column label="运动项目" min-width="300">
-                  <template #default="{ row: detail }">
-                    <span v-html="formatExerciseDisplay(detail)"></span>
-                  </template>
-                </el-table-column>
-                <el-table-column prop="estimatedCalories" label="预估消耗(kcal)" width="120" />
-              </el-table>
+              <div v-if="row.purpose === 1" class="daily-target-info">
+                每日减脂目标：{{ getDailyTargetCalories(row) }} kcal
+              </div>
+              <div v-for="day in row.groupedDetails" :key="day.dayNumber" class="day-group">
+                <div class="day-title">第 {{ day.dayNumber }} 天</div>
+                <el-table :data="day.items" border size="small" class="day-table">
+                  <el-table-column label="序号" width="60">
+                    <template #default="{ $index }">{{ $index + 1 }}</template>
+                  </el-table-column>
+                  <el-table-column label="运动项目" min-width="300">
+                    <template #default="{ row: item }">
+                      <span class="exercise-name">{{ item.exerciseName }}</span>
+                      <span class="exercise-attrs">
+                        <template v-if="item.exerciseDuration"> {{ item.exerciseDuration }}分钟</template>
+                        <template v-if="item.distance"> {{ item.distance }}km</template>
+                        <template v-if="item.sets"> {{ item.sets }}组</template>
+                        <template v-if="item.reps"> {{ item.reps }}次</template>
+                        <template v-if="item.frequency"> {{ item.frequency }}次/分</template>
+                      </span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="estimatedCalories" label="预估消耗(kcal)" width="120" />
+                </el-table>
+                <div class="day-total">当日总消耗：{{ day.totalCalories }} kcal</div>
+              </div>
             </div>
           </template>
         </el-table-column>
@@ -52,6 +68,12 @@
         <el-table-column label="预估消耗" width="120">
           <template #default="{ row }">{{ row.estimatedCalories || 0 }} kcal</template>
         </el-table-column>
+        <el-table-column v-if="hasFatLossPlan" label="每日目标" width="120">
+          <template #default="{ row }">
+            <span v-if="row.purpose === 1">{{ getDailyTargetCalories(row) }} kcal</span>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
         <el-table-column label="已消耗" width="100">
           <template #default="{ row }">{{ row.consumedCalories || 0 }} kcal</template>
         </el-table-column>
@@ -61,7 +83,7 @@
         <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="toggleExpand(row)">
-              {{ isRowExpanded(row.id) ? '收起' : '展开' }}
+              {{ expandedRowKeys.includes(row.id) ? '收起' : '展开' }}
             </el-button>
             <el-button v-if="!isAdopted(row)" link type="success" @click="adoptPlan(row)">采纳</el-button>
             <span v-else class="adopted-text">已采纳</span>
@@ -163,13 +185,12 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, nextTick } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '@/utils/request.js'
 import { useUserStore } from '@/stores/user'
 
 const userStore = useUserStore()
-const planTableRef = ref(null)
 const loading = ref(false)
 const planList = ref([])
 const generateVisible = ref(false)
@@ -179,76 +200,91 @@ const feedbackVisible = ref(false)
 const feedbackForm = reactive({ planScore: 5, feedback: '' })
 let currentFeedbackPlanId = null
 
-// 存储当前展开行的id（用于操作按钮状态显示）
-const expandedRowIds = ref([])
+const expandedRowKeys = ref([])
 
-// 判断某行是否展开
-const isRowExpanded = (id) => expandedRowIds.value.includes(id)
+const hasFatLossPlan = computed(() => planList.value.some(plan => plan.purpose === 1))
 
-// 切换行展开/收起
-const toggleExpand = (row) => {
-  if (planTableRef.value) {
-    planTableRef.value.toggleRowExpansion(row, !isRowExpanded(row.id))
-  }
+const getDailyTargetCalories = (plan) => {
+  if (plan.purpose !== 1 || !plan.loseWeightValue || !plan.durationDays) return 0
+  return Math.round(plan.loseWeightValue * 7700 / plan.durationDays)
 }
 
-// 处理表格展开事件
 const handleExpandChange = (row, expanded) => {
   if (expanded) {
-    if (!expandedRowIds.value.includes(row.id)) expandedRowIds.value.push(row.id)
-    loadPlanDetails(row)
+    if (!expandedRowKeys.value.includes(row.id)) {
+      expandedRowKeys.value.push(row.id)
+      loadPlanDetails(row)
+    }
   } else {
-    expandedRowIds.value = expandedRowIds.value.filter(id => id !== row.id)
+    expandedRowKeys.value = expandedRowKeys.value.filter(id => id !== row.id)
   }
 }
 
-// 加载方案明细
+const toggleExpand = (row) => {
+  if (expandedRowKeys.value.includes(row.id)) {
+    expandedRowKeys.value = expandedRowKeys.value.filter(id => id !== row.id)
+  } else {
+    expandedRowKeys.value.push(row.id)
+    loadPlanDetails(row)
+  }
+}
+
+// 将明细转换为每天的项目列表（每个项目一行）
+const buildGroupedDetails = (details) => {
+  if (!details || !details.length) return []
+  const groupMap = new Map()
+  details.forEach(detail => {
+    const day = detail.dayNumber
+    if (!groupMap.has(day)) groupMap.set(day, [])
+    groupMap.get(day).push(detail)
+  })
+  const grouped = []
+  for (let [day, items] of groupMap.entries()) {
+    items.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0))
+    const totalCalories = items.reduce((sum, i) => sum + (i.estimatedCalories || 0), 0)
+    grouped.push({
+      dayNumber: day,
+      items: items.map(item => ({
+        exerciseName: item.exerciseName || `运动${item.exerciseId}`,
+        exerciseDuration: item.exerciseDuration,
+        distance: item.distance,
+        sets: item.sets,
+        reps: item.reps,
+        frequency: item.frequency,
+        estimatedCalories: item.estimatedCalories || 0
+      })),
+      totalCalories: totalCalories
+    })
+  }
+  grouped.sort((a, b) => a.dayNumber - b.dayNumber)
+  return grouped
+}
+
 const loadPlanDetails = async (plan) => {
-  if (plan.details && plan.details.length) return
+  if (plan.details && plan.details.length) {
+    if (!plan.groupedDetails) plan.groupedDetails = buildGroupedDetails(plan.details)
+    return
+  }
   plan.detailsLoading = true
   try {
     const res = await request.get(`/user/plan-day-detail/list/${plan.id}`)
     if (res.data.code === 200) {
       const details = res.data.data || []
-      // 获取运动项目名称
-      const exerciseIds = [...new Set(details.map(d => d.exerciseId))]
-      const exerciseMap = {}
-      for (const eid of exerciseIds) {
-        try {
-          const exRes = await request.get(`/exercise/${eid}`)
-          if (exRes.data.code === 200) {
-            exerciseMap[eid] = exRes.data.data.exerciseName
-          }
-        } catch {}
-      }
-      details.forEach(d => {
-        d.exerciseName = exerciseMap[d.exerciseId] || `运动${d.exerciseId}`
-      })
       plan.details = details
+      plan.groupedDetails = buildGroupedDetails(details)
     } else {
       plan.details = []
+      plan.groupedDetails = []
     }
   } catch {
     plan.details = []
+    plan.groupedDetails = []
   } finally {
     plan.detailsLoading = false
   }
 }
 
-// 格式化运动项目显示（项目名 时长 组数 次数 距离）
-const formatExerciseDisplay = (detail) => {
-  const parts = []
-  parts.push(detail.exerciseName || `运动${detail.exerciseId}`)
-  if (detail.exerciseDuration) parts.push(`${detail.exerciseDuration}分钟`)
-  if (detail.sets) parts.push(`${detail.sets}组`)
-  if (detail.reps) parts.push(`${detail.reps}次`)
-  if (detail.distance) parts.push(`${detail.distance}km`)
-  return parts.join(' ')
-}
-
-// 判断方案是否已采纳（状态为1表示进行中，即已采纳）
 const isAdopted = (plan) => plan.status === 1
-// 采纳方案
 const adoptPlan = async (plan) => {
   try {
     const res = await request.put(`/user/plan/${plan.id}/status`, { status: 1 })
@@ -262,20 +298,58 @@ const adoptPlan = async (plan) => {
     ElMessage.error('操作失败')
   }
 }
-// 判断方案是否到期（当前日期 > 结束日期）
+
 const isPlanExpired = (plan) => {
   if (!plan.startDate || !plan.durationDays) return false
-  const endDate = new Date(new Date(plan.startDate).getTime() + plan.durationDays * 86400000)
-  return new Date() > endDate
+  const end = new Date(new Date(plan.startDate).getTime() + plan.durationDays * 86400000)
+  return new Date() > end
 }
-// 获取结束日期字符串
+
 const getEndDate = (plan) => {
   if (!plan.startDate || !plan.durationDays) return '-'
   const end = new Date(new Date(plan.startDate).getTime() + plan.durationDays * 86400000)
   return end.toLocaleDateString()
 }
 
-// 环境复选框数组
+const formatDate = (dateStr) => {
+  if (!dateStr) return '-'
+  return new Date(dateStr).toLocaleDateString()
+}
+
+const getStatusText = (status) => {
+  const map = { 0: '已推荐', 1: '进行中', 2: '已完成', 3: '未完成', 4: '暂停' }
+  return map[status] || '未知'
+}
+
+const getStatusType = (status) => {
+  const map = { 0: 'info', 1: 'primary', 2: 'success', 3: 'danger', 4: 'warning' }
+  return map[status] || 'info'
+}
+
+const fetchPlans = async () => {
+  loading.value = true
+  try {
+    const res = await request.get('/user/plan/list')
+    if (res.data.code === 200) {
+      const plans = res.data.data || []
+      plans.forEach(p => {
+        p.details = []
+        p.groupedDetails = []
+        p.detailsLoading = false
+      })
+      planList.value = plans
+      expandedRowKeys.value = []
+    } else {
+      ElMessage.error(res.data.message)
+    }
+  } catch {
+    ElMessage.error('获取方案列表失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+// 生成方案相关
 const envCheckedList = ref([])
 const generateForm = reactive({
   planName: '',
@@ -298,50 +372,16 @@ const generateRules = {
   purpose: [{ required: true, message: '请选择目标' }]
 }
 
-const formatDate = (dateStr) => {
-  if (!dateStr) return '-'
-  return new Date(dateStr).toLocaleDateString()
-}
-
-const getStatusText = (status) => {
-  const map = { 0: '已推荐', 1: '进行中', 2: '已完成', 3: '未完成', 4: '暂停' }
-  return map[status] || '未知'
-}
-const getStatusType = (status) => {
-  const map = { 0: 'info', 1: 'primary', 2: 'success', 3: 'danger', 4: 'warning' }
-  return map[status] || 'info'
-}
-
 const updateWeeklyMask = (vals) => {
   let mask = 0
   vals.forEach(v => mask |= v)
   generateForm.weeklyDaysMask = mask
 }
+
 const handleEnvChange = (vals) => {
   let mask = 0
   vals.forEach(v => mask |= v)
   generateForm.environmentMask = mask
-}
-
-const fetchPlans = async () => {
-  loading.value = true
-  try {
-    const res = await request.get('/user/plan/list')
-    if (res.data.code === 200) {
-      const plans = res.data.data || []
-      plans.forEach(p => {
-        p.details = []
-        p.detailsLoading = false
-      })
-      planList.value = plans
-    } else {
-      ElMessage.error(res.data.message)
-    }
-  } catch {
-    ElMessage.error('获取方案列表失败')
-  } finally {
-    loading.value = false
-  }
 }
 
 const resetGenerateForm = () => {
@@ -400,6 +440,7 @@ const showFeedback = (plan) => {
   feedbackForm.feedback = ''
   feedbackVisible.value = true
 }
+
 const submitFeedback = async () => {
   try {
     const res = await request.post(`/user/plan/${currentFeedbackPlanId}/feedback`, {
@@ -417,6 +458,7 @@ const submitFeedback = async () => {
     ElMessage.error('提交失败')
   }
 }
+
 const deletePlan = async (plan) => {
   try {
     await ElMessageBox.confirm(`确定删除方案“${plan.planName}”吗？`, '提示', { type: 'warning' })
@@ -441,5 +483,12 @@ onMounted(() => {
 .card-header { display: flex; justify-content: space-between; align-items: center; }
 .tip { margin-left: 8px; font-size: 12px; color: #909399; }
 .expand-content { padding: 12px; background-color: #fafafa; }
+.day-group { margin-bottom: 20px; }
+.day-title { font-weight: bold; margin-bottom: 8px; font-size: 16px; }
+.day-table { margin-bottom: 8px; }
+.day-total { text-align: right; font-size: 14px; color: #409eff; }
+.exercise-name { font-weight: bold; margin-right: 8px; }
+.exercise-attrs { color: #606266; }
 .adopted-text { color: #909399; font-size: 14px; margin: 0 8px; }
+.daily-target-info { margin-bottom: 12px; font-size: 14px; color: #e6a23c; font-weight: 500; }
 </style>
