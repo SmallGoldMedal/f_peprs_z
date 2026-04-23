@@ -31,7 +31,7 @@
           <template #header>
             <div class="card-header">
               <span>总消耗</span>
-              <el-icon><Fire /></el-icon>
+              <el-icon><Delete /></el-icon>
             </div>
           </template>
           <div class="stat-value">{{ totalCalories }}</div>
@@ -69,7 +69,8 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Calendar, Document } from '@element-plus/icons-vue'  // 移除 Fire 导入，因为已全局注册
+// 显式导入需要的图标（确保组件可用）
+import { Calendar, Document} from '@element-plus/icons-vue'
 import request from '@/utils/request.js'
 import { useUserStore } from '@/stores/user'
 
@@ -124,7 +125,6 @@ const fetchDashboard = async () => {
 
 const goToPlan = () => {
   userStore.setCurrentMenu('plan')
-  // 触发页面刷新，实际项目可使用事件总线，这里简单重新加载
   window.location.reload()
 }
 

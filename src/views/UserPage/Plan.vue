@@ -9,13 +9,40 @@
         </div>
       </template>
 
-      <el-table :data="planList" v-loading="loading" stripe>
+      <el-table
+          :data="planList"
+          ref="planTableRef"
+          row-key="id"
+          v-loading="loading"
+          stripe
+          @expand-change="handleExpandChange"
+      >
+        <!-- 展开列 -->
+        <el-table-column type="expand">
+          <template #default="{ row }">
+            <div class="expand-content">
+              <el-table :data="row.details" v-loading="row.detailsLoading" border size="small">
+                <el-table-column prop="dayNumber" label="第几天" width="100" />
+                <el-table-column label="运动项目" min-width="300">
+                  <template #default="{ row: detail }">
+                    <span v-html="formatExerciseDisplay(detail)"></span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="estimatedCalories" label="预估消耗(kcal)" width="120" />
+              </el-table>
+            </div>
+          </template>
+        </el-table-column>
+
         <el-table-column prop="planName" label="方案名称" />
         <el-table-column label="开始日期" width="120">
           <template #default="{ row }">{{ formatDate(row.startDate) }}</template>
         </el-table-column>
-        <el-table-column label="天数" width="80">
+        <el-table-column label="锻炼天数" width="80">
           <template #default="{ row }">{{ row.durationDays }}天</template>
+        </el-table-column>
+        <el-table-column label="结束日期" width="120">
+          <template #default="{ row }">{{ getEndDate(row) }}</template>
         </el-table-column>
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
@@ -31,11 +58,14 @@
         <el-table-column label="评分" width="80">
           <template #default="{ row }">{{ row.planScore || '-' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="240" fixed="right">
+        <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="viewDetail(row)">详情</el-button>
-            <el-button link type="warning" @click="updateStatus(row)" :disabled="row.status === 2 || row.status === 3">更新状态</el-button>
-            <el-button link type="success" @click="showFeedback(row)" :disabled="!!row.planScore">评分反馈</el-button>
+            <el-button link type="primary" @click="toggleExpand(row)">
+              {{ isRowExpanded(row.id) ? '收起' : '展开' }}
+            </el-button>
+            <el-button v-if="!isAdopted(row)" link type="success" @click="adoptPlan(row)">采纳</el-button>
+            <span v-else class="adopted-text">已采纳</span>
+            <el-button v-if="isPlanExpired(row)" link type="warning" @click="showFeedback(row)">评价</el-button>
             <el-button link type="danger" @click="deletePlan(row)">删除</el-button>
           </template>
         </el-table-column>
@@ -45,10 +75,10 @@
     <!-- 生成方案对话框 -->
     <el-dialog v-model="generateVisible" title="生成新方案" width="600px" destroy-on-close>
       <el-form :model="generateForm" :rules="generateRules" ref="generateFormRef" label-width="120px">
-        <el-form-item label="方案名称" prop="planName">
+        <el-form-item label="方案名" prop="planName">
           <el-input v-model="generateForm.planName" placeholder="例如：减脂计划" />
         </el-form-item>
-        <el-form-item label="方案类型" prop="planType">
+        <el-form-item label="锻炼安排" prop="planType">
           <el-radio-group v-model="generateForm.planType">
             <el-radio :label="0">全天安排</el-radio>
             <el-radio :label="1">间隔安排</el-radio>
@@ -58,7 +88,7 @@
         <el-form-item label="开始日期" prop="startDate">
           <el-date-picker v-model="generateForm.startDate" type="date" placeholder="选择日期" />
         </el-form-item>
-        <el-form-item label="方案天数" prop="durationDays">
+        <el-form-item label="锻炼天数" prop="durationDays">
           <el-input-number v-model="generateForm.durationDays" :min="1" :max="364" />
         </el-form-item>
         <el-form-item v-if="generateForm.planType === 1" label="间隔天数" prop="intervalDays">
@@ -76,7 +106,7 @@
             <el-checkbox :label="64">周日</el-checkbox>
           </el-checkbox-group>
         </el-form-item>
-        <el-form-item label="运动目的" prop="purpose">
+        <el-form-item label="目标" prop="purpose">
           <el-select v-model="generateForm.purpose">
             <el-option label="减肥减脂" :value="1" />
             <el-option label="增肌" :value="2" />
@@ -88,81 +118,29 @@
           </el-select>
         </el-form-item>
         <el-form-item v-if="generateForm.purpose === 1" label="减脂量(kg)" prop="loseWeightValue">
-          <el-input-number v-model="generateForm.loseWeightValue" :min="0" :step="0.5" />
+          <el-input-number v-model="generateForm.loseWeightValue" :min="0" :step="0.5" :default="1" />
         </el-form-item>
-        <el-form-item label="运动环境" prop="environmentMask">
-          <el-checkbox-group @change="updateEnvMask">
+        <el-form-item label="环境" prop="environmentMask">
+          <el-checkbox-group v-model="envCheckedList" @change="handleEnvChange">
             <el-checkbox :label="1">居家</el-checkbox>
             <el-checkbox :label="2">健身房</el-checkbox>
             <el-checkbox :label="4">户外</el-checkbox>
           </el-checkbox-group>
         </el-form-item>
-        <el-form-item label="运动经验" prop="experience">
+        <el-form-item label="经验" prop="experience">
           <el-radio-group v-model="generateForm.experience">
             <el-radio :label="0">没经验</el-radio>
             <el-radio :label="1">经验较少</el-radio>
             <el-radio :label="2">经验丰富</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="拥有的设备" prop="equipment">
+        <el-form-item label="工具设备" prop="equipment">
           <el-input v-model="generateForm.equipment" placeholder="例如：瑜伽垫、哑铃" />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="generateVisible = false">取消</el-button>
         <el-button type="primary" @click="submitGenerate" :loading="generating">生成</el-button>
-      </template>
-    </el-dialog>
-
-    <!-- 方案详情对话框 -->
-    <el-dialog v-model="detailVisible" :title="currentPlan?.planName" width="800px" destroy-on-close>
-      <el-descriptions :column="2" border v-if="currentPlan">
-        <el-descriptions-item label="开始日期">{{ formatDate(currentPlan.startDate) }}</el-descriptions-item>
-        <el-descriptions-item label="天数">{{ currentPlan.durationDays }}天</el-descriptions-item>
-        <el-descriptions-item label="状态">{{ getStatusText(currentPlan.status) }}</el-descriptions-item>
-        <el-descriptions-item label="预估消耗">{{ currentPlan.estimatedCalories || 0 }} kcal</el-descriptions-item>
-        <el-descriptions-item label="已消耗">{{ currentPlan.consumedCalories || 0 }} kcal</el-descriptions-item>
-        <el-descriptions-item label="评分">{{ currentPlan.planScore || '未评分' }}</el-descriptions-item>
-        <el-descriptions-item label="反馈" :span="2">{{ currentPlan.feedback || '无' }}</el-descriptions-item>
-      </el-descriptions>
-      <el-divider>每日明细</el-divider>
-      <el-table :data="planDetails" v-loading="loadingDetails" stripe>
-        <el-table-column prop="dayNumber" label="第几天" width="80" />
-        <el-table-column prop="exerciseId" label="运动ID" width="80" />
-        <el-table-column label="组数" width="80">
-          <template #default="{ row }">{{ row.sets || '-' }}</template>
-        </el-table-column>
-        <el-table-column label="次数" width="80">
-          <template #default="{ row }">{{ row.reps || '-' }}</template>
-        </el-table-column>
-        <el-table-column label="时长(分钟)" width="100">
-          <template #default="{ row }">{{ row.exerciseDuration || '-' }}</template>
-        </el-table-column>
-        <el-table-column label="距离(km)" width="100">
-          <template #default="{ row }">{{ row.distance || '-' }}</template>
-        </el-table-column>
-        <el-table-column label="预估卡路里" width="100">
-          <template #default="{ row }">{{ row.estimatedCalories || 0 }}</template>
-        </el-table-column>
-      </el-table>
-    </el-dialog>
-
-    <!-- 更新状态对话框 -->
-    <el-dialog v-model="statusVisible" title="更新方案状态" width="400px">
-      <el-form :model="statusForm" label-width="100px">
-        <el-form-item label="状态">
-          <el-select v-model="statusForm.status">
-            <el-option label="已推荐" :value="0" />
-            <el-option label="进行中" :value="1" />
-            <el-option label="已完成" :value="2" />
-            <el-option label="未完成" :value="3" />
-            <el-option label="暂停" :value="4" />
-          </el-select>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="statusVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitStatus">确定</el-button>
       </template>
     </el-dialog>
 
@@ -185,25 +163,120 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '@/utils/request.js'
+import { useUserStore } from '@/stores/user'
 
+const userStore = useUserStore()
+const planTableRef = ref(null)
 const loading = ref(false)
 const planList = ref([])
 const generateVisible = ref(false)
 const generating = ref(false)
 const generateFormRef = ref(null)
-const detailVisible = ref(false)
-const currentPlan = ref(null)
-const planDetails = ref([])
-const loadingDetails = ref(false)
-const statusVisible = ref(false)
-const statusForm = reactive({ status: 0 })
-let currentPlanId = null
 const feedbackVisible = ref(false)
 const feedbackForm = reactive({ planScore: 5, feedback: '' })
+let currentFeedbackPlanId = null
 
+// 存储当前展开行的id（用于操作按钮状态显示）
+const expandedRowIds = ref([])
+
+// 判断某行是否展开
+const isRowExpanded = (id) => expandedRowIds.value.includes(id)
+
+// 切换行展开/收起
+const toggleExpand = (row) => {
+  if (planTableRef.value) {
+    planTableRef.value.toggleRowExpansion(row, !isRowExpanded(row.id))
+  }
+}
+
+// 处理表格展开事件
+const handleExpandChange = (row, expanded) => {
+  if (expanded) {
+    if (!expandedRowIds.value.includes(row.id)) expandedRowIds.value.push(row.id)
+    loadPlanDetails(row)
+  } else {
+    expandedRowIds.value = expandedRowIds.value.filter(id => id !== row.id)
+  }
+}
+
+// 加载方案明细
+const loadPlanDetails = async (plan) => {
+  if (plan.details && plan.details.length) return
+  plan.detailsLoading = true
+  try {
+    const res = await request.get(`/user/plan-day-detail/list/${plan.id}`)
+    if (res.data.code === 200) {
+      const details = res.data.data || []
+      // 获取运动项目名称
+      const exerciseIds = [...new Set(details.map(d => d.exerciseId))]
+      const exerciseMap = {}
+      for (const eid of exerciseIds) {
+        try {
+          const exRes = await request.get(`/exercise/${eid}`)
+          if (exRes.data.code === 200) {
+            exerciseMap[eid] = exRes.data.data.exerciseName
+          }
+        } catch {}
+      }
+      details.forEach(d => {
+        d.exerciseName = exerciseMap[d.exerciseId] || `运动${d.exerciseId}`
+      })
+      plan.details = details
+    } else {
+      plan.details = []
+    }
+  } catch {
+    plan.details = []
+  } finally {
+    plan.detailsLoading = false
+  }
+}
+
+// 格式化运动项目显示（项目名 时长 组数 次数 距离）
+const formatExerciseDisplay = (detail) => {
+  const parts = []
+  parts.push(detail.exerciseName || `运动${detail.exerciseId}`)
+  if (detail.exerciseDuration) parts.push(`${detail.exerciseDuration}分钟`)
+  if (detail.sets) parts.push(`${detail.sets}组`)
+  if (detail.reps) parts.push(`${detail.reps}次`)
+  if (detail.distance) parts.push(`${detail.distance}km`)
+  return parts.join(' ')
+}
+
+// 判断方案是否已采纳（状态为1表示进行中，即已采纳）
+const isAdopted = (plan) => plan.status === 1
+// 采纳方案
+const adoptPlan = async (plan) => {
+  try {
+    const res = await request.put(`/user/plan/${plan.id}/status`, { status: 1 })
+    if (res.data.code === 200) {
+      ElMessage.success('已采纳方案')
+      fetchPlans()
+    } else {
+      ElMessage.error(res.data.message)
+    }
+  } catch {
+    ElMessage.error('操作失败')
+  }
+}
+// 判断方案是否到期（当前日期 > 结束日期）
+const isPlanExpired = (plan) => {
+  if (!plan.startDate || !plan.durationDays) return false
+  const endDate = new Date(new Date(plan.startDate).getTime() + plan.durationDays * 86400000)
+  return new Date() > endDate
+}
+// 获取结束日期字符串
+const getEndDate = (plan) => {
+  if (!plan.startDate || !plan.durationDays) return '-'
+  const end = new Date(new Date(plan.startDate).getTime() + plan.durationDays * 86400000)
+  return end.toLocaleDateString()
+}
+
+// 环境复选框数组
+const envCheckedList = ref([])
 const generateForm = reactive({
   planName: '',
   planType: 0,
@@ -212,7 +285,7 @@ const generateForm = reactive({
   intervalDays: null,
   weeklyDaysMask: 0,
   purpose: 1,
-  loseWeightValue: null,
+  loseWeightValue: 1,
   environmentMask: 0,
   experience: 0,
   equipment: ''
@@ -221,8 +294,8 @@ const generateForm = reactive({
 const generateRules = {
   planName: [{ required: true, message: '请输入方案名称', trigger: 'blur' }],
   startDate: [{ required: true, message: '请选择开始日期', trigger: 'change' }],
-  durationDays: [{ required: true, message: '请输入方案天数' }],
-  purpose: [{ required: true, message: '请选择运动目的' }]
+  durationDays: [{ required: true, message: '请输入锻炼天数' }],
+  purpose: [{ required: true, message: '请选择目标' }]
 }
 
 const formatDate = (dateStr) => {
@@ -234,7 +307,6 @@ const getStatusText = (status) => {
   const map = { 0: '已推荐', 1: '进行中', 2: '已完成', 3: '未完成', 4: '暂停' }
   return map[status] || '未知'
 }
-
 const getStatusType = (status) => {
   const map = { 0: 'info', 1: 'primary', 2: 'success', 3: 'danger', 4: 'warning' }
   return map[status] || 'info'
@@ -245,8 +317,7 @@ const updateWeeklyMask = (vals) => {
   vals.forEach(v => mask |= v)
   generateForm.weeklyDaysMask = mask
 }
-
-const updateEnvMask = (vals) => {
+const handleEnvChange = (vals) => {
   let mask = 0
   vals.forEach(v => mask |= v)
   generateForm.environmentMask = mask
@@ -257,7 +328,12 @@ const fetchPlans = async () => {
   try {
     const res = await request.get('/user/plan/list')
     if (res.data.code === 200) {
-      planList.value = res.data.data || []
+      const plans = res.data.data || []
+      plans.forEach(p => {
+        p.details = []
+        p.detailsLoading = false
+      })
+      planList.value = plans
     } else {
       ElMessage.error(res.data.message)
     }
@@ -268,7 +344,28 @@ const fetchPlans = async () => {
   }
 }
 
+const resetGenerateForm = () => {
+  generateForm.planName = ''
+  generateForm.planType = 0
+  generateForm.startDate = new Date()
+  generateForm.durationDays = 7
+  generateForm.intervalDays = null
+  generateForm.weeklyDaysMask = 0
+  generateForm.purpose = 1
+  generateForm.loseWeightValue = 1
+  generateForm.environmentMask = 0
+  generateForm.experience = 0
+  generateForm.equipment = ''
+  envCheckedList.value = []
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const username = userStore.username || 'user'
+  generateForm.planName = `${username}_${year}-${month}`
+}
+
 const showGenerateDialog = () => {
+  resetGenerateForm()
   generateVisible.value = true
 }
 
@@ -277,6 +374,7 @@ const submitGenerate = async () => {
   try {
     await generateFormRef.value.validate()
   } catch { return }
+  if (generateForm.environmentMask === 0) generateForm.environmentMask = 7
   generating.value = true
   try {
     const payload = { ...generateForm }
@@ -296,57 +394,15 @@ const submitGenerate = async () => {
   }
 }
 
-const viewDetail = async (plan) => {
-  currentPlan.value = plan
-  detailVisible.value = true
-  loadingDetails.value = true
-  try {
-    const res = await request.get(`/user/plan/${plan.id}`)
-    if (res.data.code === 200) {
-      currentPlan.value = res.data.data
-    }
-    const detailRes = await request.get(`/user/plan-day-detail/list/${plan.id}`)
-    if (detailRes.data.code === 200) {
-      planDetails.value = detailRes.data.data || []
-    }
-  } catch {
-    ElMessage.error('获取详情失败')
-  } finally {
-    loadingDetails.value = false
-  }
-}
-
-const updateStatus = (plan) => {
-  currentPlanId = plan.id
-  statusForm.status = plan.status
-  statusVisible.value = true
-}
-
-const submitStatus = async () => {
-  try {
-    const res = await request.put(`/user/plan/${currentPlanId}/status`, { status: statusForm.status })
-    if (res.data.code === 200) {
-      ElMessage.success('状态更新成功')
-      statusVisible.value = false
-      fetchPlans()
-    } else {
-      ElMessage.error(res.data.message)
-    }
-  } catch {
-    ElMessage.error('更新失败')
-  }
-}
-
 const showFeedback = (plan) => {
-  currentPlanId = plan.id
+  currentFeedbackPlanId = plan.id
   feedbackForm.planScore = 5
   feedbackForm.feedback = ''
   feedbackVisible.value = true
 }
-
 const submitFeedback = async () => {
   try {
-    const res = await request.post(`/user/plan/${currentPlanId}/feedback`, {
+    const res = await request.post(`/user/plan/${currentFeedbackPlanId}/feedback`, {
       planScore: feedbackForm.planScore,
       feedback: feedbackForm.feedback
     })
@@ -361,27 +417,17 @@ const submitFeedback = async () => {
     ElMessage.error('提交失败')
   }
 }
-
-// 删除方案
 const deletePlan = async (plan) => {
   try {
-    await ElMessageBox.confirm(`确定删除方案“${plan.planName}”吗？删除后不可恢复，关联的运动记录将不再关联此方案。`, '提示', {
-      type: 'warning',
-      confirmButtonText: '确定删除',
-      cancelButtonText: '取消'
-    })
+    await ElMessageBox.confirm(`确定删除方案“${plan.planName}”吗？`, '提示', { type: 'warning' })
     const res = await request.delete(`/user/plan/${plan.id}`)
     if (res.data.code === 200) {
       ElMessage.success('删除成功')
       fetchPlans()
     } else {
-      ElMessage.error(res.data.message || '删除失败')
+      ElMessage.error(res.data.message)
     }
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error('删除失败')
-    }
-  }
+  } catch {}
 }
 
 onMounted(() => {
@@ -390,21 +436,10 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.plan-page {
-  max-width: 1400px;
-  margin: 0 auto;
-}
-.plan-card {
-  border-radius: 16px;
-}
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.tip {
-  margin-left: 8px;
-  font-size: 12px;
-  color: #909399;
-}
+.plan-page { max-width: 1400px; margin: 0 auto; }
+.plan-card { border-radius: 16px; }
+.card-header { display: flex; justify-content: space-between; align-items: center; }
+.tip { margin-left: 8px; font-size: 12px; color: #909399; }
+.expand-content { padding: 12px; background-color: #fafafa; }
+.adopted-text { color: #909399; font-size: 14px; margin: 0 8px; }
 </style>
