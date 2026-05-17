@@ -1,3 +1,4 @@
+// 文件位置：C:\Users\12243\Desktop\f_peprs_z\src\views\UserPage\Injury.vue
 <template>
   <div class="injury-page">
     <el-card class="injury-card">
@@ -40,7 +41,8 @@
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑伤病' : '添加伤病'" width="600px" destroy-on-close>
       <el-form :model="form" :rules="rules" ref="formRef" label-width="100px">
         <el-form-item label="受伤部位" prop="bodyPartMask">
-          <el-checkbox-group @change="updateBodyPartMask">
+          <!-- 使用 v-model 绑定数组，实现多选勾选 -->
+          <el-checkbox-group v-model="selectedBodyParts">
             <el-checkbox :label="1">头</el-checkbox>
             <el-checkbox :label="2">手</el-checkbox>
             <el-checkbox :label="4">脚</el-checkbox>
@@ -55,14 +57,14 @@
         <el-form-item label="严重程度" prop="severity">
           <el-radio-group v-model="form.severity">
             <el-radio :label="0">轻微</el-radio>
-            <el-radio :label="1">中等严重</el-radio>
+            <el-radio :label="1">中等</el-radio>
             <el-radio :label="2">严重</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item label="症状" prop="symptomsMask">
-          <el-checkbox-group @change="updateSymptomsMask">
+          <el-checkbox-group v-model="selectedSymptoms">
             <el-checkbox :label="1">擦伤</el-checkbox>
-            <el-checkbox :label="2">有伤痕</el-checkbox>
+            <el-checkbox :label="2">有伤口</el-checkbox>
             <el-checkbox :label="4">出血</el-checkbox>
             <el-checkbox :label="8">疼痛</el-checkbox>
           </el-checkbox-group>
@@ -101,6 +103,7 @@ const isEdit = ref(false)
 const submitting = ref(false)
 const formRef = ref(null)
 
+// 表单数据（整数掩码）
 const form = reactive({
   id: null,
   bodyPartMask: 0,
@@ -110,6 +113,33 @@ const form = reactive({
   injuredDate: null,
   recoveredDate: null
 })
+
+// 用于多选框的数组
+const selectedBodyParts = ref([])
+const selectedSymptoms = ref([])
+
+// 监听数组变化，同步更新整数掩码
+const updateMask = () => {
+  let bodyMask = 0
+  selectedBodyParts.value.forEach(v => bodyMask |= v)
+  form.bodyPartMask = bodyMask
+
+  let symptomMask = 0
+  selectedSymptoms.value.forEach(v => symptomMask |= v)
+  form.symptomsMask = symptomMask
+}
+
+import { watch } from 'vue'
+watch(selectedBodyParts, () => {
+  let mask = 0
+  selectedBodyParts.value.forEach(v => mask |= v)
+  form.bodyPartMask = mask
+}, { deep: true })
+watch(selectedSymptoms, () => {
+  let mask = 0
+  selectedSymptoms.value.forEach(v => mask |= v)
+  form.symptomsMask = mask
+}, { deep: true })
 
 const rules = {
   bodyPartMask: [{ required: true, message: '请选择受伤部位', trigger: 'change' }],
@@ -128,7 +158,7 @@ const getBodyPartText = (mask) => {
   return parts.join(',') || '-'
 }
 
-const severityText = { 0: '轻微', 1: '中等严重', 2: '严重' }
+const severityText = { 0: '轻微', 1: '中等', 2: '严重' }
 const getSeverityText = (val) => severityText[val] || '-'
 const getSeverityType = (val) => {
   if (val === 0) return 'success'
@@ -136,7 +166,7 @@ const getSeverityType = (val) => {
   return 'danger'
 }
 
-const symptomsMap = { 1: '擦伤', 2: '有伤痕', 4: '出血', 8: '疼痛' }
+const symptomsMap = { 1: '擦伤', 2: '有伤口', 4: '出血', 8: '疼痛' }
 const getSymptomsText = (mask) => {
   if (!mask) return '-'
   const syms = []
@@ -152,18 +182,6 @@ const getStatusType = (val) => {
   if (val === 0) return 'danger'
   if (val === 1) return 'warning'
   return 'success'
-}
-
-const updateBodyPartMask = (vals) => {
-  let mask = 0
-  vals.forEach(v => mask |= v)
-  form.bodyPartMask = mask
-}
-
-const updateSymptomsMask = (vals) => {
-  let mask = 0
-  vals.forEach(v => mask |= v)
-  form.symptomsMask = mask
 }
 
 const fetchInjuries = async () => {
@@ -182,6 +200,15 @@ const fetchInjuries = async () => {
   }
 }
 
+// 将整数掩码转换为数组
+const maskToArray = (mask, options) => {
+  const arr = []
+  options.forEach(opt => {
+    if (mask & opt) arr.push(opt)
+  })
+  return arr
+}
+
 const showAddDialog = () => {
   isEdit.value = false
   form.id = null
@@ -189,8 +216,10 @@ const showAddDialog = () => {
   form.severity = 0
   form.symptomsMask = 0
   form.status = 0
-  form.injuredDate = null
+  form.injuredDate = new Date()
   form.recoveredDate = null
+  selectedBodyParts.value = []
+  selectedSymptoms.value = []
   dialogVisible.value = true
 }
 
@@ -205,6 +234,9 @@ const showEditDialog = (row) => {
     injuredDate: row.injuredDate,
     recoveredDate: row.recoveredDate
   })
+  // 将掩码转换为数组，用于多选框回显
+  selectedBodyParts.value = maskToArray(row.bodyPartMask, [1,2,4,8,16,32,64,128,256])
+  selectedSymptoms.value = maskToArray(row.symptomsMask, [1,2,4,8])
   dialogVisible.value = true
 }
 
@@ -215,9 +247,14 @@ const submitForm = async () => {
   } catch { return }
   submitting.value = true
   try {
-    const payload = { ...form }
-    if (payload.injuredDate) payload.injuredDate = new Date(payload.injuredDate).toISOString()
-    if (payload.recoveredDate) payload.recoveredDate = new Date(payload.recoveredDate).toISOString()
+    const payload = {
+      bodyPartMask: form.bodyPartMask,
+      severity: form.severity,
+      symptomsMask: form.symptomsMask,
+      status: form.status,
+      injuredDate: form.injuredDate ? new Date(form.injuredDate).toISOString() : null,
+      recoveredDate: form.recoveredDate ? new Date(form.recoveredDate).toISOString() : null
+    }
     let res
     if (isEdit.value) {
       res = await request.put(`/user/injury/update/${form.id}`, payload)

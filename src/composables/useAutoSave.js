@@ -1,4 +1,3 @@
-// src/composables/useAutoSave.js
 import { watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 
@@ -38,7 +37,5 @@ watch(data, () => save(), { deep: true })
 // 组件挂载时恢复
 onMounted(() => restore())
 
-// 组件卸载前可保留数据（不清除，等待下次登录恢复）
-// 若希望登出后清除，可以在 logout 时统一清除，但这里保留
 return { restore, save }
 }

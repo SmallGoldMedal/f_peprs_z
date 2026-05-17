@@ -1,4 +1,3 @@
-// 文件位置：C:\Users\12243\Desktop\f_peprs_z\src\views\UserPage\Plan.vue
 <template>
   <div class="plan-page">
     <el-card class="plan-card">
@@ -17,7 +16,6 @@
           v-loading="loading"
           stripe
       >
-        <!-- 展开列：每天单独一个表格，每个项目一行 -->
         <el-table-column type="expand">
           <template #default="{ row }">
             <div class="expand-content">
@@ -32,7 +30,7 @@
                   </el-table-column>
                   <el-table-column label="运动项目" min-width="300">
                     <template #default="{ row: item }">
-                      <span class="exercise-name">{{ item.exerciseName }}</span>
+                      <span class="exercise-name">{{ getExerciseName(item.exerciseId, item.exerciseName) }}</span>
                       <span class="exercise-attrs">
                         <template v-if="item.exerciseDuration"> {{ item.exerciseDuration }}分钟</template>
                         <template v-if="item.distance"> {{ item.distance }}km</template>
@@ -118,7 +116,7 @@
           <span class="tip">（每隔几天运动一次）</span>
         </el-form-item>
         <el-form-item v-if="generateForm.planType === 2" label="锻炼日" prop="weeklyDaysMask">
-          <el-checkbox-group @change="updateWeeklyMask">
+          <el-checkbox-group v-model="weeklyDaysArray" @change="updateWeeklyMask">
             <el-checkbox :label="1">周一</el-checkbox>
             <el-checkbox :label="2">周二</el-checkbox>
             <el-checkbox :label="4">周三</el-checkbox>
@@ -191,6 +189,35 @@ import request from '@/utils/request.js'
 import { useUserStore } from '@/stores/user'
 
 const userStore = useUserStore()
+
+// 运动名称映射表
+const exerciseNameMap = ref({})
+
+// 加载所有运动名称
+const loadExerciseNameMap = async () => {
+  try {
+    const res = await request.post('/exercise/search', { page: 1, size: 100 })
+    if (res.data.code === 200) {
+      const exercises = res.data.data.records || []
+      exercises.forEach(ex => {
+        exerciseNameMap.value[ex.id] = ex.exerciseName
+      })
+      console.log('运动名称映射已加载，共', Object.keys(exerciseNameMap.value).length, '条')
+    } else {
+      console.error('加载运动名称失败', res.data.message)
+    }
+  } catch (error) {
+    console.error('加载运动名称异常', error)
+  }
+}
+
+// 获取运动名称（优先后端返回，其次映射表，最后显示ID）
+const getExerciseName = (exerciseId, backendName) => {
+  if (backendName && backendName.trim()) return backendName
+  const name = exerciseNameMap.value[exerciseId]
+  return name || `运动${exerciseId}`
+}
+
 const loading = ref(false)
 const planList = ref([])
 const generateVisible = ref(false)
@@ -229,14 +256,17 @@ const toggleExpand = (row) => {
   }
 }
 
-// 将明细转换为每天的项目列表（每个项目一行）
+// 构建按天分组的明细，同时确保运动名称正确
 const buildGroupedDetails = (details) => {
   if (!details || !details.length) return []
   const groupMap = new Map()
   details.forEach(detail => {
     const day = detail.dayNumber
     if (!groupMap.has(day)) groupMap.set(day, [])
-    groupMap.get(day).push(detail)
+    groupMap.get(day).push({
+      ...detail,
+      exerciseName: getExerciseName(detail.exerciseId, detail.exerciseName)
+    })
   })
   const grouped = []
   for (let [day, items] of groupMap.entries()) {
@@ -244,15 +274,7 @@ const buildGroupedDetails = (details) => {
     const totalCalories = items.reduce((sum, i) => sum + (i.estimatedCalories || 0), 0)
     grouped.push({
       dayNumber: day,
-      items: items.map(item => ({
-        exerciseName: item.exerciseName || `运动${item.exerciseId}`,
-        exerciseDuration: item.exerciseDuration,
-        distance: item.distance,
-        sets: item.sets,
-        reps: item.reps,
-        frequency: item.frequency,
-        estimatedCalories: item.estimatedCalories || 0
-      })),
+      items: items,
       totalCalories: totalCalories
     })
   }
@@ -270,8 +292,20 @@ const loadPlanDetails = async (plan) => {
     const res = await request.get(`/user/plan-day-detail/list/${plan.id}`)
     if (res.data.code === 200) {
       const details = res.data.data || []
-      plan.details = details
-      plan.groupedDetails = buildGroupedDetails(details)
+      plan.details = details.map(d => ({
+        id: d.id,
+        exerciseId: d.exerciseId,
+        exerciseName: d.exerciseName, // 可能为空
+        sets: d.sets,
+        reps: d.reps,
+        exerciseDuration: d.exerciseDuration,
+        distance: d.distance,
+        frequency: d.frequency,
+        estimatedCalories: d.estimatedCalories,
+        dayNumber: d.dayNumber,
+        orderIndex: d.orderIndex
+      }))
+      plan.groupedDetails = buildGroupedDetails(plan.details)
     } else {
       plan.details = []
       plan.groupedDetails = []
@@ -351,6 +385,8 @@ const fetchPlans = async () => {
 
 // 生成方案相关
 const envCheckedList = ref([])
+const weeklyDaysArray = ref([])
+
 const generateForm = reactive({
   planName: '',
   planType: 0,
@@ -372,9 +408,9 @@ const generateRules = {
   purpose: [{ required: true, message: '请选择目标' }]
 }
 
-const updateWeeklyMask = (vals) => {
+const updateWeeklyMask = () => {
   let mask = 0
-  vals.forEach(v => mask |= v)
+  weeklyDaysArray.value.forEach(v => mask |= v)
   generateForm.weeklyDaysMask = mask
 }
 
@@ -397,6 +433,7 @@ const resetGenerateForm = () => {
   generateForm.experience = 0
   generateForm.equipment = ''
   envCheckedList.value = []
+  weeklyDaysArray.value = []
   const now = new Date()
   const year = now.getFullYear()
   const month = String(now.getMonth() + 1).padStart(2, '0')
@@ -472,8 +509,9 @@ const deletePlan = async (plan) => {
   } catch {}
 }
 
-onMounted(() => {
-  fetchPlans()
+onMounted(async () => {
+  await loadExerciseNameMap()   // 先加载运动名称映射
+  await fetchPlans()
 })
 </script>
 

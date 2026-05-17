@@ -1,4 +1,3 @@
-<!-- 文件位置：C:\Users\12243\Desktop\f_peprs_z\src\views\AuthPage.vue -->
 <template>
   <div class="login-page">
     <!-- 天空背景 -->
@@ -25,6 +24,7 @@
               v-model="loginForm.username"
               class="input-field"
               clearable
+              @keyup.enter="handleLogin"
           ></el-input>
           <el-input
               placeholder="密码"
@@ -32,6 +32,7 @@
               v-model="loginForm.password"
               class="input-field"
               show-password
+              @keyup.enter="handleLogin"
           ></el-input>
           <el-button type="primary" class="action-btn" @click="handleLogin" :loading="loginLoading">
             登录
@@ -53,7 +54,6 @@
                   @blur="checkUsernameDebounced"
               ></el-input>
               <div v-if="usernameExists" class="error-tip">账号已存在，请更换</div>
-              <div v-else-if="checkingUsername" class="checking-tip">检测中...</div>
             </el-form-item>
             <el-form-item prop="password">
               <el-input
@@ -74,7 +74,7 @@
               ></el-input>
             </el-form-item>
           </el-form>
-          <el-button type="primary" class="action-btn" @click="handleRegister" :loading="registerLoading" :disabled="usernameExists || checkingUsername">
+          <el-button type="primary" class="action-btn" @click="handleRegister" :loading="registerLoading" :disabled="usernameExists">
             注册
           </el-button>
           <div class="extra-links">
@@ -110,7 +110,6 @@ const registerFormRef = ref(null)
 
 // 用户名实时校验
 const usernameExists = ref(false)
-const checkingUsername = ref(false)
 let debounceTimer = null
 
 // 注册表单验证规则
@@ -153,15 +152,13 @@ const registerRules = {
   ]
 }
 
-// 检查用户名是否已存在
+// 检查用户名是否已存在（不显示检测中）
 const checkUsername = async () => {
   const usernameVal = registerForm.username
   if (!usernameVal || usernameVal.length < 3 || usernameVal.length > 20) {
     usernameExists.value = false
-    checkingUsername.value = false
     return
   }
-  checkingUsername.value = true
   try {
     const res = await request.get('/auth/check-username', { params: { username: usernameVal } })
     if (res.data.code === 200) {
@@ -170,10 +167,8 @@ const checkUsername = async () => {
       usernameExists.value = false
     }
   } catch (error) {
-    console.error('检测账号名失败，请检查网络后再试', error)
+    console.error('检测账号名失败', error)
     usernameExists.value = false
-  } finally {
-    checkingUsername.value = false
   }
 }
 
@@ -195,7 +190,6 @@ const switchToRegister = () => {
   registerForm.password = ''
   registerForm.confirmPassword = ''
   usernameExists.value = false
-  checkingUsername.value = false
   isRegisterMode.value = true
   nextTick(() => {
     registerFormRef.value?.clearValidate()
@@ -212,20 +206,22 @@ const switchToLogin = () => {
 // 登录处理
 const handleLogin = async () => {
   if (!loginForm.username || !loginForm.password) {
-    ElMessage.warning('请输入用户名和密码')
-    return
+    ElMessage.warning('请输入用户名和密码');
+    return;
   }
-  loginLoading.value = true
+  loginLoading.value = true;
   try {
-    await userStore.login(loginForm.username, loginForm.password)
-    ElMessage.success('登录成功')
-    router.push('/home')
+    await userStore.login(loginForm.username, loginForm.password);
+    ElMessage.success('登录成功');
+    sessionStorage.removeItem('redirectPath');
+    sessionStorage.removeItem('redirectQuery');
+    router.push('/home');
   } catch (err) {
-    ElMessage.error(err.message || '登录失败')
+    ElMessage.error(err.message || '登录失败');
   } finally {
-    loginLoading.value = false
+    loginLoading.value = false;
   }
-}
+};
 
 // 注册处理
 const handleRegister = async () => {
@@ -257,6 +253,7 @@ if (userStore.isAuthenticated) {
 </script>
 
 <style scoped>
+/* 样式保持不变（省略重复代码，实际保持原有样式） */
 * {
   margin: 0;
   padding: 0;
@@ -271,7 +268,6 @@ if (userStore.isAuthenticated) {
   font-family: 'Segoe UI', 'PingFang SC', Roboto, 'Helvetica Neue', sans-serif;
 }
 
-/* 天空 */
 .sky {
   position: absolute;
   top: 0;
@@ -282,7 +278,6 @@ if (userStore.isAuthenticated) {
   z-index: 0;
 }
 
-/* 太阳 */
 .sun {
   position: absolute;
   top: 8%;
@@ -307,7 +302,6 @@ if (userStore.isAuthenticated) {
   }
 }
 
-/* 云朵 */
 .clouds {
   position: absolute;
   top: 0;
@@ -427,7 +421,6 @@ if (userStore.isAuthenticated) {
   }
 }
 
-/* 登录卡片容器 */
 .login-container {
   position: absolute;
   top: 50%;
@@ -506,13 +499,6 @@ if (userStore.isAuthenticated) {
 
 .error-tip {
   color: #f56c6c;
-  font-size: 12px;
-  margin-top: 4px;
-  text-align: left;
-  padding-left: 16px;
-}
-.checking-tip {
-  color: #909399;
   font-size: 12px;
   margin-top: 4px;
   text-align: left;

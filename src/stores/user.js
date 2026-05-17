@@ -58,7 +58,20 @@ export const useUserStore = defineStore('user', () => {
                 userId: data.userId,
                 role: data.role
             })
-            return true
+            // 登录成功后恢复页面状态
+            const redirectPath = sessionStorage.getItem('redirectPath')
+            const redirectQuery = sessionStorage.getItem('redirectQuery')
+            if (redirectPath) {
+                sessionStorage.removeItem('redirectPath')
+                sessionStorage.removeItem('redirectQuery')
+                // 如果有保存的查询参数，合并到跳转路径中
+                if (redirectQuery && redirectQuery !== 'null') {
+                    const queryObj = JSON.parse(redirectQuery)
+                    return { redirect: redirectPath, query: queryObj }
+                }
+                return { redirect: redirectPath }
+            }
+            return { redirect: '/home' }
         }
         throw new Error(res.data.message || '登录失败')
     }

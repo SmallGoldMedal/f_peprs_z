@@ -72,11 +72,7 @@ const submit = async () => {
     if (res.data.code === 200) {
       ElMessage.success('密码修改成功，请重新登录')
       dialogVisible.value = false
-      form.oldPassword = ''
-      form.newPassword = ''
-      form.confirmPassword = ''
-      // 清除本地存储并跳转登录
-      await request.post('/auth/logout')
+      // 清除本地存储并跳转登录页（无需调用后端登出接口）
       localStorage.clear()
       setTimeout(() => {
         window.location.href = '/'

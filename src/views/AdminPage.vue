@@ -24,15 +24,15 @@
         >
           <el-menu-item index="dataManage">
             <el-icon><DataBoard /></el-icon>
-            <span>系统数据管理</span>
+            <span>系统数据</span>
           </el-menu-item>
           <el-menu-item index="userManage">
             <el-icon><User /></el-icon>
-            <span>用户管理</span>
+            <span>用户</span>
           </el-menu-item>
           <el-menu-item index="logManage">
             <el-icon><Document /></el-icon>
-            <span>系统日志管理</span>
+            <span>日志</span>
           </el-menu-item>
         </el-menu>
       </aside>
