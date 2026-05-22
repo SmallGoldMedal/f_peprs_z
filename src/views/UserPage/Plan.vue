@@ -154,7 +154,7 @@
             <el-radio :label="2">经验丰富</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="工具设备" prop="equipment">
+        <el-form-item label="拥有器械" prop="equipment">
           <el-input v-model="generateForm.equipment" placeholder="例如：瑜伽垫、哑铃" />
         </el-form-item>
       </el-form>
@@ -295,7 +295,7 @@ const loadPlanDetails = async (plan) => {
       plan.details = details.map(d => ({
         id: d.id,
         exerciseId: d.exerciseId,
-        exerciseName: d.exerciseName, // 可能为空
+        exerciseName: d.exerciseName,
         sets: d.sets,
         reps: d.reps,
         exerciseDuration: d.exerciseDuration,
@@ -414,12 +414,14 @@ const updateWeeklyMask = () => {
   generateForm.weeklyDaysMask = mask
 }
 
+// 处理环境复选框变化，更新掩码
 const handleEnvChange = (vals) => {
   let mask = 0
   vals.forEach(v => mask |= v)
   generateForm.environmentMask = mask
 }
 
+// 重置生成表单（默认全选运动环境）
 const resetGenerateForm = () => {
   generateForm.planName = ''
   generateForm.planType = 0
@@ -429,11 +431,15 @@ const resetGenerateForm = () => {
   generateForm.weeklyDaysMask = 0
   generateForm.purpose = 1
   generateForm.loseWeightValue = 1
-  generateForm.environmentMask = 0
   generateForm.experience = 0
   generateForm.equipment = ''
-  envCheckedList.value = []
+
+  // 默认全选三个运动环境
+  envCheckedList.value = [1, 2, 4]
+  handleEnvChange(envCheckedList.value)
+
   weeklyDaysArray.value = []
+
   const now = new Date()
   const year = now.getFullYear()
   const month = String(now.getMonth() + 1).padStart(2, '0')
@@ -447,29 +453,44 @@ const showGenerateDialog = () => {
 }
 
 const submitGenerate = async () => {
-  if (!generateFormRef.value) return
+  if (!generateFormRef.value) return;
   try {
-    await generateFormRef.value.validate()
-  } catch { return }
-  if (generateForm.environmentMask === 0) generateForm.environmentMask = 7
-  generating.value = true
-  try {
-    const payload = { ...generateForm }
-    if (payload.startDate) payload.startDate = new Date(payload.startDate).toISOString()
-    const res = await request.post('/user/plan/generate', payload)
-    if (res.data.code === 200) {
-      ElMessage.success('方案生成成功')
-      generateVisible.value = false
-      fetchPlans()
-    } else {
-      ElMessage.error(res.data.message || '生成失败')
-    }
-  } catch {
-    ElMessage.error('生成失败')
-  } finally {
-    generating.value = false
+    await generateFormRef.value.validate();
+  } catch { return; }
+
+  // 验证运动环境至少选择一个
+  if (generateForm.environmentMask === 0) {
+    ElMessage.warning('请至少选择一个运动环境');
+    return;
   }
-}
+
+  generating.value = true;
+  try {
+    const payload = { ...generateForm };
+    if (payload.startDate) payload.startDate = new Date(payload.startDate).toISOString();
+    const res = await request.post('/user/plan/generate', payload);
+
+    if (res.data.code === 200) {
+      // 检查是否返回了有效的方案数据（假设方案对象包含 id 或 planName）
+      if (res.data.data && res.data.data.id) {
+        ElMessage.success('方案生成成功');
+        generateVisible.value = false;
+        fetchPlans();
+      } else {
+        // 后端未返回有效方案数据
+        ElMessage.warning('无方案生成');
+      }
+    } else {
+      // 后端返回错误码，可能后端生成失败
+      ElMessage.warning(res.data.message || '无方案生成');
+    }
+  } catch (error) {
+    console.error('生成方案失败', error);
+    ElMessage.warning('无方案生成');
+  } finally {
+    generating.value = false;
+  }
+};
 
 const showFeedback = (plan) => {
   currentFeedbackPlanId = plan.id
@@ -510,23 +531,77 @@ const deletePlan = async (plan) => {
 }
 
 onMounted(async () => {
-  await loadExerciseNameMap()   // 先加载运动名称映射
+  await loadExerciseNameMap()
   await fetchPlans()
 })
 </script>
 
 <style scoped>
-.plan-page { max-width: 1400px; margin: 0 auto; }
-.plan-card { border-radius: 16px; }
-.card-header { display: flex; justify-content: space-between; align-items: center; }
-.tip { margin-left: 8px; font-size: 12px; color: #909399; }
-.expand-content { padding: 12px; background-color: #fafafa; }
-.day-group { margin-bottom: 20px; }
-.day-title { font-weight: bold; margin-bottom: 8px; font-size: 16px; }
-.day-table { margin-bottom: 8px; }
-.day-total { text-align: right; font-size: 14px; color: #409eff; }
-.exercise-name { font-weight: bold; margin-right: 8px; }
-.exercise-attrs { color: #606266; }
-.adopted-text { color: #909399; font-size: 14px; margin: 0 8px; }
-.daily-target-info { margin-bottom: 12px; font-size: 14px; color: #e6a23c; font-weight: 500; }
+.plan-page {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.plan-card {
+  border-radius: 16px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tip {
+  margin-left: 8px;
+  font-size: 12px;
+  color: #909399;
+}
+
+.expand-content {
+  padding: 12px;
+  background-color: #fafafa;
+}
+
+.day-group {
+  margin-bottom: 20px;
+}
+
+.day-title {
+  font-weight: bold;
+  margin-bottom: 8px;
+  font-size: 16px;
+}
+
+.day-table {
+  margin-bottom: 8px;
+}
+
+.day-total {
+  text-align: right;
+  font-size: 14px;
+  color: #409eff;
+}
+
+.exercise-name {
+  font-weight: bold;
+  margin-right: 8px;
+}
+
+.exercise-attrs {
+  color: #606266;
+}
+
+.adopted-text {
+  color: #909399;
+  font-size: 14px;
+  margin: 0 8px;
+}
+
+.daily-target-info {
+  margin-bottom: 12px;
+  font-size: 14px;
+  color: #e6a23c;
+  font-weight: 500;
+}
 </style>

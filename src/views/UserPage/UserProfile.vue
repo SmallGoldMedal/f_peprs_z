@@ -1,4 +1,4 @@
-// 文件位置：C:\Users\12243\Desktop\f_peprs_z\src\views\UserProfile\test.vue
+// 文件位置：C:\Users\12243\Desktop\f_peprs_z\src\views\UserPage\UserProfile.vue
 <template>
   <div class="user-profile">
     <el-card class="profile-card">
@@ -76,13 +76,36 @@
           />
         </el-form-item>
 
+        <!-- 体脂率：添加问号图标 -->
         <el-form-item label="体脂率(%)" prop="bodyFatRate">
-          <el-input
-              v-model="form.bodyFatRate"
-              type="text"
-              placeholder="请输入体脂率"
-              @input="validateNumber('bodyFatRate')"
-          />
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <el-input
+                v-model="form.bodyFatRate"
+                type="text"
+                placeholder="请输入体脂率"
+                @input="validateNumber('bodyFatRate')"
+                style="flex: 1"
+            />
+            <el-popover
+                placement="right"
+                width="600"
+                trigger="hover"
+                :hide-after="0"
+            >
+              <template #reference>
+                <el-icon class="help-icon" style="cursor: pointer; color: #909399;">
+                  <QuestionFilled />
+                </el-icon>
+              </template>
+              <div class="bodyfat-table">
+                <el-table :data="bodyFatTableData" border stripe size="small">
+                  <el-table-column prop="gender" label="性别" width="60" />
+                  <el-table-column prop="rate" label="体脂率" width="100" />
+                  <el-table-column prop="description" label="外观特征" min-width="400" show-overflow-tooltip />
+                </el-table>
+              </div>
+            </el-popover>
+          </div>
         </el-form-item>
 
         <el-divider content-position="left">健康信息</el-divider>
@@ -128,6 +151,7 @@
 <script setup>
 import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { QuestionFilled } from '@element-plus/icons-vue'
 import request from '@/utils/request.js'
 
 // 慢性病列表
@@ -392,6 +416,24 @@ const handleUpdate = async () => {
   }
 }
 
+// 体脂率参考表格数据
+const bodyFatTableData = [
+  { gender: '男', rate: '5%', description: '肌肉线条极度分明，全身血管清晰可见，面颊凹陷' },
+  { gender: '男', rate: '10%', description: '腹肌清晰，肌肉之间有明显分离度' },
+  { gender: '男', rate: '15%', description: '肌肉分离度一般，腰腹两侧有少量脂肪' },
+  { gender: '男', rate: '20%', description: '腹肌模糊或不可见，腰围较粗，没有明显肌肉线条，全身脂肪均匀分布' },
+  { gender: '男', rate: '25%', description: '腹部隆起，皮肤褶皱变厚' },
+  { gender: '男', rate: '30%', description: '腹部圆滚，体形呈圆形，走路时脂肪晃动明显' },
+  { gender: '男', rate: '35%+', description: '行动时脂肪震颤' },
+  { gender: '女', rate: '10%', description: '面部凹陷，月经停止' },
+  { gender: '女', rate: '15%', description: '腹肌清晰可见，臀部和大腿肌肉分离度明显，有马甲线' },
+  { gender: '女', rate: '20%', description: '马甲线明显，全身紧致，手臂、大腿有轻微脂肪覆盖' },
+  { gender: '女', rate: '25%', description: '马甲线隐约可见，腰腹柔软无赘肉，整体匀称' },
+  { gender: '女', rate: '30%', description: '腹部有轻微隆起，无马甲线，大腿和臀部脂肪较多' },
+  { gender: '女', rate: '35%', description: '腹部明显凸起，手臂和腿部脂肪囤积明显' },
+  { gender: '女', rate: '40%+', description: '腹部下垂，臀腿大量脂肪' }
+]
+
 onMounted(() => {
   fetchUserInfo()
 })
@@ -455,5 +497,17 @@ onMounted(() => {
 /* 禁用输入框样式 */
 :deep(.el-input.is-disabled .el-input__wrapper) {
   background-color: #f5f7fa;
+}
+
+.help-icon {
+  font-size: 18px;
+  transition: color 0.2s;
+}
+.help-icon:hover {
+  color: #409eff;
+}
+
+.bodyfat-table :deep(.el-table__header th) {
+  background-color: #f8f9fc;
 }
 </style>

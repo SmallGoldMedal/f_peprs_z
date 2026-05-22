@@ -64,7 +64,6 @@
     <!-- 添加/编辑对话框 -->
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="550px" destroy-on-close @closed="onDialogClosed">
       <el-form :model="form" :rules="rules" ref="formRef" label-width="120px">
-        <!-- 运动项目下拉选择（动态选项） -->
         <el-form-item label="运动项目" prop="exerciseId">
           <el-select
               v-model="form.exerciseId"
@@ -83,7 +82,12 @@
           </el-select>
         </el-form-item>
         <el-form-item label="完成日期" prop="completionDate">
-          <el-date-picker v-model="form.completionDate" type="date" placeholder="选择日期" />
+          <el-date-picker
+              v-model="form.completionDate"
+              type="date"
+              placeholder="选择日期"
+              @change="onDateChange"
+          />
         </el-form-item>
         <el-form-item label="状态" prop="status">
           <el-radio-group v-model="form.status">
@@ -138,8 +142,8 @@
 </template>
 
 <script setup>
-import {ref, reactive, onMounted, computed} from 'vue'
-import {ElMessage, ElMessageBox} from 'element-plus'
+import { ref, reactive, onMounted, computed } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '@/utils/request.js'
 
 const loading = ref(false)
@@ -185,8 +189,8 @@ const exerciseNameMap = ref({})
 const exerciseDetailMap = ref({})
 const exerciseLoading = ref(false)
 
-// 方案运动项目缓存（存储 schemeId 和对应运动列表）
-const planExerciseCache = ref(new Map())
+// 缓存方案明细（planId -> 明细数组）
+const planDetailsCache = ref(new Map())
 
 // 伤病列表
 const injuryList = ref([])
@@ -196,15 +200,15 @@ const planList = ref([])
 const pendingPlanWorkout = ref(null)
 
 const rules = {
-  exerciseId: [{required: true, message: '请选择运动项目', trigger: 'change'}],
-  completionDate: [{required: true, message: '请选择完成日期', trigger: 'change'}],
-  status: [{required: true, message: '请选择状态', trigger: 'change'}]
+  exerciseId: [{ required: true, message: '请选择运动项目', trigger: 'change' }],
+  completionDate: [{ required: true, message: '请选择完成日期', trigger: 'change' }],
+  status: [{ required: true, message: '请选择状态', trigger: 'change' }]
 }
 
 const hasPendingPlanWorkout = computed(() => !!pendingPlanWorkout.value)
 
 // ---------- 辅助函数 ----------
-const bodyPartMap = {1: '头', 2: '手', 4: '脚', 8: '肩', 16: '脖', 32: '胯', 64: '身子', 128: '内脏', 256: '骨'}
+const bodyPartMap = { 1: '头', 2: '手', 4: '脚', 8: '肩', 16: '脖', 32: '胯', 64: '身子', 128: '内脏', 256: '骨' }
 const getBodyPartText = (mask) => {
   if (!mask) return '-'
   const parts = []
@@ -214,7 +218,7 @@ const getBodyPartText = (mask) => {
   return parts.join(',') || '-'
 }
 const getInjuryStatusText = (status) => {
-  const map = {0: '治疗中', 1: '恢复中', 2: '已痊愈'}
+  const map = { 0: '治疗中', 1: '恢复中', 2: '已痊愈' }
   return map[status] || '未知'
 }
 const formatDateShort = (dateStr) => {
@@ -231,12 +235,12 @@ const getPlanName = (planId) => {
   return plan ? plan.planName : ''
 }
 
-// 加载全部运动项目（用于自定义添加和编辑）
+// 加载全部运动项目
 const loadAllExercises = async () => {
   if (fullExerciseOptions.value.length > 0) return
   exerciseLoading.value = true
   try {
-    const res = await request.post('/exercise/search', {page: 1, size: 100})
+    const res = await request.post('/exercise/search', { page: 1, size: 100 })
     if (res.data.code === 200) {
       const exercises = res.data.data.records || []
       fullExerciseOptions.value = exercises
@@ -255,45 +259,71 @@ const loadAllExercises = async () => {
   }
 }
 
-// 加载指定方案的运动项目列表（用于方案内记录）
-const loadPlanExercises = async (planId) => {
-  if (planExerciseCache.value.has(planId)) {
-    currentExerciseOptions.value = planExerciseCache.value.get(planId)
-    return
+// 根据方案ID和日期获取当天的运动项目列表
+const getPlanExercisesByDate = async (planId, completionDate) => {
+  if (!planId || !completionDate) return []
+
+  // 获取方案基本信息（开始日期）
+  let plan = planList.value.find(p => p.id === planId)
+  if (!plan) {
+    await fetchPlans()
+    plan = planList.value.find(p => p.id === planId)
+    if (!plan) return []
   }
-  exerciseLoading.value = true
-  try {
-    const res = await request.get(`/user/plan-day-detail/list/${planId}`)
-    if (res.data.code === 200) {
-      const details = res.data.data || []
-      const exerciseIds = [...new Set(details.map(d => d.exerciseId))]
-      const planExercises = []
-      for (const exId of exerciseIds) {
-        // 优先从已加载的详情中获取，否则请求
-        let ex = exerciseDetailMap.value[exId]
-        if (!ex) {
-          const exRes = await request.get(`/exercise/${exId}`)
-          if (exRes.data.code === 200) {
-            ex = exRes.data.data
-            exerciseNameMap.value[ex.id] = ex.exerciseName
-            exerciseDetailMap.value[ex.id] = ex
-          }
-        }
-        if (ex) {
-          planExercises.push({id: ex.id, exerciseName: ex.exerciseName})
-        }
+
+  // 从缓存获取明细，若没有则请求
+  let details = planDetailsCache.value.get(planId)
+  if (!details) {
+    try {
+      const res = await request.get(`/user/plan-day-detail/list/${planId}`)
+      if (res.data.code === 200) {
+        details = res.data.data || []
+        planDetailsCache.value.set(planId, details)
+      } else {
+        return []
       }
-      planExerciseCache.value.set(planId, planExercises)
-      currentExerciseOptions.value = planExercises
-    } else {
-      currentExerciseOptions.value = []
+    } catch {
+      return []
     }
-  } catch (error) {
-    console.error('加载方案运动项目失败', error)
-    ElMessage.error('加载方案运动项目失败')
-    currentExerciseOptions.value = []
-  } finally {
-    exerciseLoading.value = false
+  }
+
+  // 计算日期对应的 dayNumber
+  const startDate = new Date(plan.startDate)
+  startDate.setHours(0, 0, 0, 0)
+  const targetDate = new Date(completionDate)
+  targetDate.setHours(0, 0, 0, 0)
+  const diffTime = targetDate - startDate
+  const dayNumber = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1
+  if (dayNumber < 1 || dayNumber > plan.durationDays) {
+    return []
+  }
+
+  // 过滤出当天的运动项目，去重
+  const dayDetails = details.filter(d => d.dayNumber === dayNumber)
+  const uniqueMap = new Map()
+  for (const d of dayDetails) {
+    if (!uniqueMap.has(d.exerciseId)) {
+      let exerciseName = d.exerciseName
+      if (!exerciseName) {
+        exerciseName = exerciseNameMap.value[d.exerciseId] || `运动${d.exerciseId}`
+      }
+      uniqueMap.set(d.exerciseId, { id: d.exerciseId, exerciseName })
+    }
+  }
+  return Array.from(uniqueMap.values())
+}
+
+// 日期变化时的处理
+const onDateChange = async () => {
+  if (form.planId && form.completionDate) {
+    currentExerciseOptions.value = await getPlanExercisesByDate(form.planId, form.completionDate)
+    // 如果当前选中的运动项目不在新列表中，清空
+    if (!currentExerciseOptions.value.some(e => e.id === form.exerciseId)) {
+      form.exerciseId = null
+    }
+  } else if (!form.planId) {
+    // 自定义记录时，使用全部运动项目
+    currentExerciseOptions.value = fullExerciseOptions.value
   }
 }
 
@@ -319,8 +349,7 @@ const fetchInjuries = async () => {
   try {
     const res = await request.get('/user/injury/list')
     if (res.data.code === 200) injuryList.value = res.data.data || []
-  } catch {
-  }
+  } catch {}
 }
 
 // 获取所有方案列表
@@ -328,14 +357,13 @@ const fetchPlans = async () => {
   try {
     const res = await request.get('/user/plan/list')
     if (res.data.code === 200) planList.value = res.data.data || []
-  } catch {
-  }
+  } catch {}
 }
 
 // 查找待记录的方案运动日
 const checkPendingPlanWorkout = async () => {
   await fetchPlans()
-  const recordRes = await request.post('/user/workout-record/search', {page: 1, size: 1000})
+  const recordRes = await request.post('/user/workout-record/search', { page: 1, size: 1000 })
   const existingRecords = (recordRes.data.code === 200 && recordRes.data.data.records) ? recordRes.data.data.records : []
   const recordedSet = new Set()
   existingRecords.forEach(rec => {
@@ -351,11 +379,13 @@ const checkPendingPlanWorkout = async () => {
     const detailRes = await request.get(`/user/plan-day-detail/list/${plan.id}`)
     if (detailRes.data.code !== 200) continue
     const details = detailRes.data.data || []
+    // 按天分组
     const dayMap = new Map()
     details.forEach(d => {
       if (!dayMap.has(d.dayNumber)) dayMap.set(d.dayNumber, [])
       dayMap.get(d.dayNumber).push(d)
     })
+
     const startDate = new Date(plan.startDate)
     const pendingDays = []
     for (let [dayNum, dayDetails] of dayMap.entries()) {
@@ -372,12 +402,13 @@ const checkPendingPlanWorkout = async () => {
         }
       }
       if (!allRecorded) {
-        pendingDays.push({dayNum, targetDate, details: dayDetails})
+        pendingDays.push({ dayNum, targetDate, details: dayDetails })
       }
     }
     if (pendingDays.length > 0) {
       pendingDays.sort((a, b) => a.dayNum - b.dayNum)
       const nearest = pendingDays[0]
+      // 选择当天第一个非热身/放松的运动作为默认
       let targetDetail = null
       for (const detail of nearest.details) {
         const exRes = await request.get(`/exercise/${detail.exerciseId}`)
@@ -416,17 +447,22 @@ const showPlanWorkoutDialog = async () => {
     return
   }
   const planId = pendingPlanWorkout.value.planId
-  // 加载方案内的运动项目列表
-  await loadPlanExercises(planId)
-  if (currentExerciseOptions.value.length === 0) {
-    ElMessage.warning('该方案无运动项目，无法添加记录')
+  const targetDate = pendingPlanWorkout.value.completionDate
+
+  // 获取当天运动项目
+  const exercises = await getPlanExercisesByDate(planId, targetDate)
+  if (exercises.length === 0) {
+    ElMessage.warning('该日期无有效运动项目，请检查方案')
     return
   }
+
   resetForm()
   form.planId = planId
-  form.exerciseId = pendingPlanWorkout.value.exerciseId
-  form.completionDate = pendingPlanWorkout.value.completionDate
+  form.completionDate = targetDate
   form.status = 0
+  currentExerciseOptions.value = exercises
+  // 默认选择当天第一个运动项目
+  form.exerciseId = exercises[0].id
   onExerciseChange(form.exerciseId)
   isEdit.value = false
   dialogTitle.value = '添加方案内运动记录'
@@ -468,7 +504,7 @@ const showEditDialog = async (row) => {
   dialogVisible.value = true
 }
 
-// 对话框关闭时清空动态选项（避免下次打开时残留）
+// 对话框关闭时清空动态选项
 const onDialogClosed = () => {
   currentExerciseOptions.value = []
 }
